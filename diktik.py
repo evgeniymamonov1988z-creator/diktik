@@ -517,10 +517,6 @@ class App:
         self.lang_box.pack(side="left", padx=6)
         self.lang_box.bind("<<ComboboxSelected>>", self._on_lang_change)
 
-        # — подсказка —
-        self.hint = tk.Label(root, text=T["hint"], fg=MUTED, bg=BG)
-        self.hint.pack(anchor="w", padx=10)
-
         # — строка состояния демо (3 дня) —
         self.demo_lbl = tk.Label(root, text="", fg="#e5c07b", bg=BG,
                                  font=("Segoe UI", 8, "bold"))

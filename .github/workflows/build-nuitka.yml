@@ -52,6 +52,9 @@ jobs:
             --standalone ^
             --assume-yes-for-downloads ^
             --enable-plugin=tk-inter ^
+            --include-package=filelock ^
+            --include-package=huggingface_hub ^
+            --include-package=faster_whisper ^
             --windows-console-mode=disable ^
             --company-name="Mamonov Software" ^
             --product-name="VoiceNote" ^
@@ -122,7 +125,7 @@ jobs:
             '',
             '[Icons]',
             'Name: "{group}\Diktik"; Filename: "{app}\diktik.exe"',
-            'Name: "{autodesktop}\Diktik"; Filename: "{app}\diktik.exe"; Tasks: desktopicon',
+            'Name: "{autodesktop}\Diktik"; Filename: "{app}\diktik.exe"',
             '',
             '[Run]',
             'Filename: "{app}\diktik.exe"; Description: "{cm:LaunchProgram,Diktik}"; Flags: nowait postinstall skipifsilent'
