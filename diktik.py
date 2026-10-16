@@ -721,7 +721,45 @@ class App:
         self.vol_canvas.coords(self.vol_bar, 0, 0, int(w * frac), 14)
         self.vol_canvas.itemconfig(self.vol_bar, fill=color)
 
+# ---------------------------------------------------------------------------
+# Защита от повторного запуска (один экземпляр программы)
+# ---------------------------------------------------------------------------
+_MUTEX_HANDLE = None  # держим ссылку всю жизнь процесса
+
+
+def already_running():
+    """True, если программа уже запущена (Windows, imennoj mutex)."""
+    global _MUTEX_HANDLE
+    if sys.platform != "win32":
+        return False
+    ERROR_ALREADY_EXISTS = 183
+    try:
+        import ctypes
+        _MUTEX_HANDLE = ctypes.windll.kernel32.CreateMutexW(
+            None, False, "MamonovDiktikVoiceNote_SingleInstance"
+        )
+        return ctypes.windll.kernel32.GetLastError() == ERROR_ALREADY_EXISTS
+    except Exception:
+        log.error("Проверка повторного запуска:\n%s", traceback.format_exc())
+        return False
+
+
 def main():
+    if already_running():
+        log.info("Программа уже запущена — второй экземпляр закрыт")
+        try:
+            from tkinter import messagebox
+            r = tk.Tk()
+            r.withdraw()
+            messagebox.showinfo(
+                APP_NAME,
+                "Программа уже запущена." if UI == "ru"
+                else "The program is already running.",
+            )
+            r.destroy()
+        except Exception:
+            pass
+        return
     try:
         root = tk.Tk()
         App(root)
