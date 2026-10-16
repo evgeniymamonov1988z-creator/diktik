@@ -120,11 +120,16 @@ log.info("Язык интерфейса: %s", UI)
 # Название и демо-режим
 # ---------------------------------------------------------------------------
 APP_NAME = "Диктик" if UI == "ru" else "VoiceNote"
-SITE_URL = "evgeniymamonov.com"
-# DEMO = True — бесплатная демо-версия (ограничена по времени записи)
-# DEMO = False — полная версия (после оплаты)
-DEMO = True
-DEMO_LIMIT_SEC = 180          # демо: всего 3 минуты записи за сеанс работы
+SITE_URL = "https://evgeniymamonov.com"
+
+# Лицензия / демо (единая модель бренда: 3 дня демо, привязка к отпечатку ПК)
+try:
+    import license as lic
+    HAS_LIC = True
+    log.info("license OK")
+except Exception:
+    HAS_LIC = False
+    log.info("license не найден — демо отключено (полная версия)")
 
 TEXTS = {
     "ru": {
@@ -140,8 +145,9 @@ TEXTS = {
         "mic_error": "Ошибка",
         "ready": "Модель готова",
         "lang": "Язык:",
-        "demo_over": "Демо-лимит исчерпан. Полная версия на " + SITE_URL,
-        "demo_badge": "ДЕМО — 3 мин записи. Полная версия: " + SITE_URL,
+        "trial_left": "Демо: осталось {n} дн.",
+        "demo_over": "Демо закончилось",
+        "buy_at": "Разблокировать — полная версия",
     },
     "en": {
         "title": "VoiceNote — speech to text",
@@ -156,8 +162,9 @@ TEXTS = {
         "mic_error": "Error",
         "ready": "Model ready",
         "lang": "Language:",
-        "demo_over": "Demo limit reached. Full version at " + SITE_URL,
-        "demo_badge": "DEMO — 3 min recording. Full version: " + SITE_URL,
+        "trial_left": "Demo: {n} days left",
+        "demo_over": "Demo expired",
+        "buy_at": "Unlock — full version",
     },
 }
 T = TEXTS[UI]
@@ -445,8 +452,8 @@ class App:
         root.configure(bg=BG)
 
         self.is_running = False
-        self.demo_used = 0          # секунды записи в демо-режиме
-        self._demo_tick_id = None
+        self.lic_state = "activated"   # activated / trial / expired
+        self.lic_left = 0
         self.rec = Recognizer(
             self._add_text_safe, self._set_status_safe, self._set_volume_safe
         )
@@ -514,11 +521,14 @@ class App:
         self.hint = tk.Label(root, text=T["hint"], fg=MUTED, bg=BG)
         self.hint.pack(anchor="w", padx=10)
 
-        # — плашка демо-версии —
-        if DEMO:
-            self.demo_lbl = tk.Label(root, text=T["demo_badge"], fg="#ffb300",
-                                     bg=BG, font=("Segoe UI", 8))
-            self.demo_lbl.pack(anchor="w", padx=10)
+        # — строка состояния демо (3 дня) —
+        self.demo_lbl = tk.Label(root, text="", fg="#e5c07b", bg=BG,
+                                 font=("Segoe UI", 8, "bold"))
+        self.demo_lbl.pack(anchor="w", padx=10)
+        # — ссылка «Разблокировать» (видна, когда демо кончилось) —
+        self.buy_lbl = tk.Label(root, text="", fg="#9fbfdf", bg=BG,
+                                font=("Segoe UI", 9, "underline"), cursor="hand2")
+        self.buy_lbl.bind("<Button-1>", lambda e: self._open_site())
 
         # — шкала громкости микрофона —
         vol_frame = tk.Frame(root, bg=BG)
@@ -553,6 +563,9 @@ class App:
         self.status = tk.Label(root, text=T["ready"], anchor="w", bg=BG, fg=MUTED)
         self.status.pack(fill="x", side="bottom")
 
+        # — проверка демо (3 дня, решает сервер) —
+        self._check_license()
+
     def _apply_language(self, name):
         code = dict(LANGUAGES).get(name, None)
         self.rec.language = code
@@ -582,40 +595,98 @@ class App:
 
     def toggle(self):
         if not self.is_running:
-            if DEMO and self.demo_used >= DEMO_LIMIT_SEC:
+            if self.lic_state == "expired":
                 self._set_status_safe(T["demo_over"])
+                self._set_demo_label()
                 return
             self.is_running = True
             self.start_btn.config(text=T["stop"])
             log.info("Нажат Старт")
             threading.Thread(target=self.rec.start, daemon=True).start()
-            if DEMO:
-                self._demo_tick()
         else:
             self.is_running = False
             self.start_btn.config(text=T["start"])
             log.info("Нажат Стоп")
             self.rec.stop()
-            if self._demo_tick_id is not None:
-                self.root.after_cancel(self._demo_tick_id)
-                self._demo_tick_id = None
 
-    def _demo_tick(self):
-        """Счётчик времени для демо-версии."""
-        if not self.is_running:
+    # -------- Демо / лицензия (3 дня, решает сервер) --------
+    def _check_license(self):
+        """Определяет состояние демо. Пока нет ответа — не мешаем работать."""
+        if not HAS_LIC:
+            self.lic_state = "activated"
+            self._set_demo_label()
             return
-        self.demo_used += 1
-        left = DEMO_LIMIT_SEC - self.demo_used
-        if left <= 0:
-            # лимит исчерпан — останавливаем
-            self.is_running = False
-            self.start_btn.config(text=T["start"])
-            self.rec.stop()
-            self._demo_tick_id = None
-            self._set_status_safe(T["demo_over"])
-            log.info("Демо-лимит исчерпан")
-            return
-        self._demo_tick_id = self.root.after(1000, self._demo_tick)
+        self.lic_state = "activated"
+        self.lic_left = 0
+        self._set_demo_label()
+        threading.Thread(target=self._license_worker, daemon=True).start()
+
+    def _license_worker(self):
+        try:
+            state, left = lic.status_msstore_aware()
+        except Exception:
+            try:
+                state, left = lic.status()
+            except Exception:
+                state, left = "activated", 0
+        self.lic_state = state
+        self.lic_left = left
+        try:
+            self.root.after(0, self._set_demo_label)
+        except Exception:
+            pass
+
+    def _set_demo_label(self):
+        """Обновляет строку демо и ссылку покупки."""
+        try:
+            if self.lic_state == "trial":
+                self.demo_lbl.config(text=T["trial_left"].format(n=self.lic_left),
+                                     fg="#e5c07b")
+                self._hide_buy_link()
+            elif self.lic_state == "expired":
+                self.demo_lbl.config(text=T["demo_over"], fg="#e06c75")
+                self._show_buy_link()
+            else:
+                self.demo_lbl.config(text="")
+                self._hide_buy_link()
+        except Exception:
+            pass
+
+    def _show_buy_link(self):
+        try:
+            self.buy_lbl.config(text=T["buy_at"])
+            if not self.buy_lbl.winfo_ismapped():
+                self.buy_lbl.pack(after=self.demo_lbl, anchor="w", padx=10, pady=(0, 2))
+        except Exception:
+            pass
+
+    def _hide_buy_link(self):
+        try:
+            self.buy_lbl.config(text="")
+            if self.buy_lbl.winfo_ismapped():
+                self.buy_lbl.pack_forget()
+        except Exception:
+            pass
+
+    def _open_site(self):
+        """Открывает страницу оплаты именно этого компьютера (с его отпечатком),
+        чтобы после оплаты демо снялось автоматически."""
+        from urllib.parse import urlencode
+        params = {"lang": "en" if UI == "en" else "ru"}
+        try:
+            if HAS_LIC:
+                params.update(lic.buy_params())
+        except Exception:
+            pass
+        try:
+            url = SITE_URL + "/buy.php?" + urlencode(params)
+        except Exception:
+            url = SITE_URL + "/buy.php"
+        try:
+            import webbrowser
+            webbrowser.open(url)
+        except Exception:
+            self._set_status_safe(T["buy_at"])
 
     def clear(self):
         self.text.delete("1.0", "end")
