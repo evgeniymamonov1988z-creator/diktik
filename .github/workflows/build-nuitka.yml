@@ -56,6 +56,7 @@ jobs:
             --include-package=huggingface_hub ^
             --include-package=faster_whisper ^
             --include-package-data=faster_whisper ^
+            --windows-icon-from-ico=diktik.ico ^
             --windows-console-mode=disable ^
             --company-name="Mamonov Software" ^
             --product-name="VoiceNote" ^
@@ -112,11 +113,16 @@ jobs:
             'Compression=lzma2',
             'SolidCompression=yes',
             'WizardStyle=modern',
+            'SetupIconFile=diktik.ico',
             'PrivilegesRequired=lowest',
             '',
             '[Languages]',
             'Name: "en"; MessagesFile: "compiler:Default.isl"',
             'Name: "ru"; MessagesFile: "compiler:Languages\Russian.isl"',
+            '',
+            '[CustomMessages]',
+            'en.AppShortcut=VoiceNote',
+            'ru.AppShortcut=Диктик',
             '',
             '[Tasks]',
             'Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"',
@@ -125,8 +131,8 @@ jobs:
             'Source: "dist\Diktik\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs',
             '',
             '[Icons]',
-            'Name: "{group}\Diktik"; Filename: "{app}\diktik.exe"',
-            'Name: "{autodesktop}\Diktik"; Filename: "{app}\diktik.exe"',
+            'Name: "{group}\{cm:AppShortcut}"; Filename: "{app}\diktik.exe"',
+            'Name: "{autodesktop}\{cm:AppShortcut}"; Filename: "{app}\diktik.exe"',
             '',
             '[Run]',
             'Filename: "{app}\diktik.exe"; Description: "{cm:LaunchProgram,Diktik}"; Flags: nowait postinstall skipifsilent'
