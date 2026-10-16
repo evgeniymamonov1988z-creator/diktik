@@ -55,6 +55,7 @@ jobs:
             --include-package=filelock ^
             --include-package=huggingface_hub ^
             --include-package=faster_whisper ^
+            --include-package-data=faster_whisper ^
             --windows-console-mode=disable ^
             --company-name="Mamonov Software" ^
             --product-name="VoiceNote" ^
