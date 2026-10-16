@@ -1,0 +1,36 @@
+# Диктик / VoiceNote
+
+**Диктик** (RU) / **VoiceNote** (EN) — простая программа для Windows: говорите в микрофон — получаете текст. Распознавание работает **офлайн**, на вашем компьютере, без интернета и без облака.
+
+По-английски: **VoiceNote** turns your speech into text. It runs **fully offline** on your PC — no cloud, no account, your voice never leaves your computer.
+
+## Возможности / Features
+
+- 🎙 Распознавание речи с микрофона в реальном времени
+- 🌍 Автоматическое определение языка или ручной выбор (русский, English, Español, Deutsch, 中文, 日本語 и др.)
+- 🖱 Клик по тексту — копирование в буфер обмена; правая кнопка мыши — меню «Копировать / Выделить всё / Очистить»
+- 🪟 Окно поверх всех окон — удобно диктовать в любое приложение
+- 🌙 Тёмная тема, интерфейс на русском или английском (по языку Windows)
+- ✨ Автоматическое исправление пунктуации и грамматики
+- 🔒 100% офлайн — ничего не отправляется в интернет
+
+## Демо-версия / Demo
+
+Это **бесплатная демо-версия**: до 3 минут записи за сеанс работы.
+Полная версия без ограничений — на сайте **evgeniymamonov.com**.
+
+This is a **free demo**: up to 3 minutes of recording per session.
+Get the full, unlimited version at **evgeniymamonov.com**.
+
+## Запуск из исходников / Run from source
+
+```bash
+pip install -r requirements.txt
+python diktik.py
+```
+
+Нужен Python 3.9+ и микрофон. Для умной грамматики нужна Java (необязательно).
+
+## Mamonov Software
+
+© Mamonov Software · evgeniymamonov.com

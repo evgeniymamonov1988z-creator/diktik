@@ -1,0 +1,58 @@
+name: Build Windows (folder)
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install nuitka
+
+      - name: Build (standalone folder)
+        run: |
+          python -m nuitka ^
+            --standalone ^
+            --assume-yes-for-downloads ^
+            --enable-plugin=tk-inter ^
+            --windows-console-mode=disable ^
+            --company-name="Mamonov Software" ^
+            --product-name="VoiceNote" ^
+            --file-description="VoiceNote - speech to text" ^
+            --output-dir=build ^
+            --output-filename=diktik.exe ^
+            diktik.py
+        shell: cmd
+
+      - name: Package folder into ZIP
+        run: |
+          cd build
+          Compress-Archive -Path diktik.dist\* -DestinationPath ..\Diktik-VoiceNote-windows.zip
+        shell: pwsh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Diktik-VoiceNote-windows
+          path: Diktik-VoiceNote-windows.zip
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Diktik-VoiceNote-windows.zip

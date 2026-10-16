@@ -1,0 +1,4 @@
+numpy
+sounddevice
+faster-whisper
+language_tool_python
