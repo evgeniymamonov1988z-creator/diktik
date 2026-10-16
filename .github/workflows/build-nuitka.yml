@@ -33,6 +33,8 @@ jobs:
             --windows-console-mode=disable ^
             --company-name="Mamonov Software" ^
             --product-name="VoiceNote" ^
+            --product-version=1.0.0 ^
+            --file-version=1.0.0 ^
             --file-description="VoiceNote - speech to text" ^
             --output-dir=build ^
             --output-filename=diktik.exe ^
