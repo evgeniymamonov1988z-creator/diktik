@@ -215,7 +215,7 @@ SILENCE_LEVEL = 0.0010
 # Сколько тишины (сек) означает конец фразы → сразу пишем
 END_SILENCE = 0.35
 # Макс. длина фразы (сек) — чтобы не копить бесконечно
-MAX_PHRASE = 8.0
+MAX_PHRASE = 5.0
 
 # Типичные «галлюцинации» модели (титры из субтитров и т.п.) — выкидываем
 HALLUCINATIONS = [
@@ -242,6 +242,7 @@ class Recognizer:
         self.model = None
         self.audio_q = queue.Queue()
         self.running = False
+        self._starting = False      # защита от двойного «Старт»
         self.worker = None
         self.stream = None
         self.phrase = []            # накапливаемая текущая фраза
@@ -276,8 +277,9 @@ class Recognizer:
                     pass
 
     def start(self):
-        if self.running:
+        if self.running or self._starting:
             return
+        self._starting = True
         try:
             # покажем список микрофонов в лог
             log.info("Устройства ввода:\n%s", sd.query_devices())
@@ -291,9 +293,11 @@ class Recognizer:
         except Exception:
             log.error("Ошибка загрузки модели:\n%s", traceback.format_exc())
             self.on_status(T["mic_error"] + ": model")
+            self._starting = False
             return
 
         self.running = True
+        self._starting = False
         self.worker = threading.Thread(target=self._process_loop, daemon=True)
         self.worker.start()
         try:
@@ -401,9 +405,11 @@ class Recognizer:
             segments, info = self.model.transcribe(
                 audio,
                 language=self.language,
-                beam_size=5,
+                beam_size=1,
+                temperature=0.0,
                 vad_filter=True,
                 no_speech_threshold=0.6,
+                compression_ratio_threshold=10.0,
                 condition_on_previous_text=False,
             )
             parts = []
@@ -411,7 +417,7 @@ class Recognizer:
                 # пропускаем неразборчивые/пустые куски
                 if getattr(seg, "no_speech_prob", 0.0) > 0.6:
                     continue
-                if getattr(seg, "avg_logprob", 0.0) < -1.0:
+                if getattr(seg, "avg_logprob", 0.0) < -1.5:
                     continue
                 s = seg.text.strip()
                 low = s.lower()
