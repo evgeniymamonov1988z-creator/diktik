@@ -1,10 +1,13 @@
-name: Build Windows (folder)
+name: Build Windows (folder + installer, signed)
 
 on:
   workflow_dispatch:
   push:
     tags:
       - 'v*'
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -18,13 +21,32 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Set up JDK (clean OpenJDK / Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install nuitka
 
-      - name: Build (standalone folder)
+      - name: Build compact Java runtime (jlink)
+        shell: pwsh
+        run: |
+          # Урезанная чистая Java — только нужные модули, без рекламы/браузеров
+          if (Test-Path jre) { Remove-Item jre -Recurse -Force }
+          & "$env:JAVA_HOME\bin\jlink.exe" `
+            --add-modules java.base,java.desktop,java.logging,java.naming,java.xml,java.management,java.scripting,jdk.unsupported `
+            --strip-debug --no-header-files --no-man-pages --compress=2 `
+            --output jre
+          $size = [math]::Round((Get-ChildItem jre -Recurse | Measure-Object Length -Sum).Sum/1MB,1)
+          Write-Host ("[OK] compact JRE: $size MB")
+
+      - name: Build EXE with Nuitka (standalone folder)
+        shell: cmd
         run: |
           python -m nuitka ^
             --standalone ^
@@ -33,28 +55,116 @@ jobs:
             --windows-console-mode=disable ^
             --company-name="Mamonov Software" ^
             --product-name="VoiceNote" ^
-            --product-version=1.0.0 ^
-            --file-version=1.0.0 ^
             --file-description="VoiceNote - speech to text" ^
-            --output-dir=build ^
+            --file-version=1.0.0.0 ^
+            --product-version=1.0.0.0 ^
+            --copyright="Copyright (c) Evgeniy Mamonov. All rights reserved." ^
+            --output-dir=dist ^
             --output-filename=diktik.exe ^
             diktik.py
-        shell: cmd
+
+      - name: Assemble folder (+ bundle compact Java)
+        shell: pwsh
+        run: |
+          $dist = 'dist\diktik.dist'
+          if (-not (Test-Path $dist)) { Write-Host '[!] build folder not found'; Get-ChildItem dist; exit 1 }
+          Rename-Item -LiteralPath $dist -NewName 'Diktik' -Force
+          # кладём встроенную Java рядом с программой
+          Copy-Item -Path 'jre' -Destination 'dist\Diktik\jre' -Recurse -Force
+          Write-Host '[OK] Java упакована в папку программы'
+
+      - name: Sign main EXE (own certificate)
+        shell: pwsh
+        env:
+          SIGN_PFX_BASE64: ${{ secrets.SIGN_PFX_BASE64 }}
+          SIGN_PFX_PASSWORD: ${{ secrets.SIGN_PFX_PASSWORD }}
+        run: |
+          $pfxBytes = [Convert]::FromBase64String($env:SIGN_PFX_BASE64)
+          $pfxPath = Join-Path $env:RUNNER_TEMP 'sign.pfx'
+          [IO.File]::WriteAllBytes($pfxPath, $pfxBytes)
+          $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($pfxPath, $env:SIGN_PFX_PASSWORD, 'Exportable,PersistKeySet')
+          $exe = Get-ChildItem 'dist\Diktik\diktik.exe' | Select-Object -First 1
+          $sig = Set-AuthenticodeSignature -FilePath $exe.FullName -Certificate $cert -TimestampServer "http://timestamp.digicert.com"
+          Write-Host ('[OK] Signed exe -> ' + $sig.Status)
 
       - name: Package folder into ZIP
-        run: |
-          cd build
-          Compress-Archive -Path diktik.dist\* -DestinationPath ..\Diktik-VoiceNote-windows.zip
         shell: pwsh
+        run: |
+          Compress-Archive -Path 'dist\Diktik' -DestinationPath 'dist\Diktik-VoiceNote-windows.zip' -Force
+
+      - name: Build installer (Inno Setup)
+        shell: pwsh
+        run: |
+          $lines = @(
+            '[Setup]',
+            'AppName=Diktik / VoiceNote',
+            'AppVersion=1.0.0',
+            'AppPublisher=Mamonov Software',
+            'DefaultDirName={autopf}\Diktik',
+            'DisableProgramGroupPage=yes',
+            'UninstallDisplayIcon={app}\diktik.exe',
+            'OutputDir=dist',
+            'OutputBaseFilename=Ustanovka Diktik VoiceNote',
+            'Compression=lzma2',
+            'SolidCompression=yes',
+            'WizardStyle=modern',
+            'PrivilegesRequired=lowest',
+            '',
+            '[Languages]',
+            'Name: "en"; MessagesFile: "compiler:Default.isl"',
+            'Name: "ru"; MessagesFile: "compiler:Languages\Russian.isl"',
+            '',
+            '[Tasks]',
+            'Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"',
+            '',
+            '[Files]',
+            'Source: "dist\Diktik\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs',
+            '',
+            '[Icons]',
+            'Name: "{group}\Diktik"; Filename: "{app}\diktik.exe"',
+            'Name: "{autodesktop}\Diktik"; Filename: "{app}\diktik.exe"; Tasks: desktopicon',
+            '',
+            '[Run]',
+            'Filename: "{app}\diktik.exe"; Description: "{cm:LaunchProgram,Diktik}"; Flags: nowait postinstall skipifsilent'
+          )
+          $iss = $lines -join "`r`n"
+          $utf8bom = New-Object System.Text.UTF8Encoding $true
+          [System.IO.File]::WriteAllText("$PWD\installer.iss", $iss, $utf8bom)
+          $iscc = @('C:\Program Files (x86)\Inno Setup 6\ISCC.exe','C:\Program Files\Inno Setup 6\ISCC.exe') | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) { choco install innosetup -y --no-progress; $iscc = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' }
+          & $iscc 'installer.iss'
+          if ($LASTEXITCODE -ne 0) { Write-Host '[!] installer build failed'; exit 1 }
+
+      - name: Sign installer (own certificate)
+        shell: pwsh
+        env:
+          SIGN_PFX_BASE64: ${{ secrets.SIGN_PFX_BASE64 }}
+          SIGN_PFX_PASSWORD: ${{ secrets.SIGN_PFX_PASSWORD }}
+        run: |
+          $pfxBytes = [Convert]::FromBase64String($env:SIGN_PFX_BASE64)
+          $pfxPath = Join-Path $env:RUNNER_TEMP 'sign.pfx'
+          [IO.File]::WriteAllBytes($pfxPath, $pfxBytes)
+          $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($pfxPath, $env:SIGN_PFX_PASSWORD, 'Exportable,PersistKeySet')
+          $exe = Get-ChildItem 'dist\Ustanovka*.exe' | Select-Object -First 1
+          $sig = Set-AuthenticodeSignature -FilePath $exe.FullName -Certificate $cert -TimestampServer "http://timestamp.digicert.com"
+          Write-Host ('[OK] Signed installer -> ' + $sig.Status)
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: Diktik-VoiceNote-windows
-          path: Diktik-VoiceNote-windows.zip
+          path: |
+            dist/Diktik-VoiceNote-windows.zip
+            dist/Ustanovka*.exe
+          if-no-files-found: error
 
-      - name: Attach to release
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Publish to rolling release
         uses: softprops/action-gh-release@v2
         with:
-          files: Diktik-VoiceNote-windows.zip
+          tag_name: auto-build
+          name: "VoiceNote / \u0414\u0438\u043a\u0442\u0438\u043a \u2014 \u043f\u043e\u0441\u043b\u0435\u0434\u043d\u044f\u044f \u0441\u0431\u043e\u0440\u043a\u0430"
+          body: "\u0410\u0432\u0442\u043e\u043c\u0430\u0442\u0438\u0447\u0435\u0441\u043a\u0430\u044f \u0441\u0431\u043e\u0440\u043a\u0430. \u0412\u0441\u0442\u0440\u043e\u0435\u043d\u043d\u0430\u044f \u043a\u043e\u043c\u043f\u0430\u043a\u0442\u043d\u0430\u044f Java, \u043f\u043e\u0434\u043f\u0438\u0441\u044c \u0441\u043e\u0431\u0441\u0442\u0432\u0435\u043d\u043d\u044b\u043c \u0441\u0435\u0440\u0442\u0438\u0444\u0438\u043a\u0430\u0442\u043e\u043c."
+          files: |
+            dist/Diktik-VoiceNote-windows.zip
+            dist/Ustanovka*.exe
+          make_latest: true

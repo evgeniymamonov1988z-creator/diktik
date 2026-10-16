@@ -50,6 +50,15 @@ except Exception:
     log.error("Ошибка импорта библиотек:\n%s", traceback.format_exc())
     raise
 
+# Если рядом с программой лежит встроенная Java (папка jre) — используем её,
+# чтобы умная грамматика работала без установки Java в систему.
+_bundled_jre = os.path.join(BASE_DIR, "jre")
+if os.path.isdir(_bundled_jre):
+    os.environ["JAVA_HOME"] = _bundled_jre
+    _jre_bin = os.path.join(_bundled_jre, "bin")
+    os.environ["PATH"] = _jre_bin + os.pathsep + os.environ.get("PATH", "")
+    log.info("Встроенная Java: %s", _bundled_jre)
+
 # Умная грамматика (LanguageTool) — работает по умолчанию, если есть Java и language_tool_python
 try:
     import language_tool_python
