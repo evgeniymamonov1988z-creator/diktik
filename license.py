@@ -42,11 +42,24 @@ SITE_URL = "https://evgeniymamonov.com"
 def machine_id():
     """Устойчивый «отпечаток» этого компьютера (16 hex-символов).
 
-    На Windows — MachineGuid из реестра (самый стабильный ид системы) +
-    имя компьютера. Запасной вариант — MAC-адрес. Без личных данных.
-    Та же схема, что и у «Записи экрана» — одна копия = один компьютер.
+    Берётся ТОЛЬКО из MachineGuid Windows (ID установки системы, не меняется).
+    Результат один раз сохраняется в %APPDATA%\\MAMONOV\\machine.id и далее
+    всегда читается из файла — поэтому отпечаток не «плавает» между запусками.
+    MAC-адрес и имя компьютера НЕ используются (они меняются от сети/настроек).
     """
-    parts = []
+    cache_dir = os.path.join(
+        os.environ.get("APPDATA", os.path.expanduser("~")), "MAMONOV")
+    cache = os.path.join(cache_dir, "machine.id")
+    # 1) уже сохранён — берём из файла (гарантированно тот же номер)
+    try:
+        with open(cache, "r", encoding="utf-8") as f:
+            saved = f.read().strip().upper()
+        if len(saved) == 16 and all(c in "0123456789ABCDEF" for c in saved):
+            return saved
+    except Exception:
+        pass
+    # 2) первый раз — вычисляем из MachineGuid (стабильный ид Windows)
+    guid = ""
     if os.name == "nt":
         try:
             import winreg
@@ -58,23 +71,24 @@ def machine_id():
                 guid, _ = winreg.QueryValueEx(key, "MachineGuid")
             finally:
                 winreg.CloseKey(key)
-            if guid:
-                parts.append(str(guid))
         except Exception:
-            pass
+            guid = ""
+    guid = str(guid).strip()
+    if guid:
+        raw = guid
+    else:
+        # MachineGuid недоступен — создаём СВОЙ случайный номер один раз
+        # (уникальный и больше не меняется, т.к. сразу сохраняется в файл)
+        raw = "rnd:" + uuid.uuid4().hex
+    mid = hashlib.sha256(raw.encode("utf-8", "ignore")).hexdigest()[:16].upper()
+    # 3) сохраняем, чтобы впредь не менялся
     try:
-        node = platform.node()
-        if node:
-            parts.append(node)
+        os.makedirs(cache_dir, exist_ok=True)
+        with open(cache, "w", encoding="utf-8") as f:
+            f.write(mid)
     except Exception:
         pass
-    if not parts:
-        try:
-            parts.append(str(uuid.getnode()))
-        except Exception:
-            pass
-    raw = "|".join(p for p in parts if p) or "unknown"
-    return hashlib.sha256(raw.encode("utf-8", "ignore")).hexdigest()[:16].upper()
+    return mid
 
 
 def _ask_server(machine=None, timeout=6):
