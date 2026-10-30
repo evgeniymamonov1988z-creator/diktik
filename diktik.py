@@ -151,7 +151,7 @@ TEXTS = {
         "lang": "Язык:",
         "trial_left": "Демо: осталось {n} дн.",
         "demo_over": "Демо закончилось",
-        "buy_at": "Разблокировать — полная версия",
+        "buy_at": "Полная версия за 499 рублей",
     },
     "en": {
         "title": "VoiceNote — speech to text",
@@ -168,7 +168,7 @@ TEXTS = {
         "lang": "Language:",
         "trial_left": "Demo: {n} days left",
         "demo_over": "Demo expired",
-        "buy_at": "Unlock — full version",
+        "buy_at": "Full version for $9.9",
     },
 }
 T = TEXTS[UI]
