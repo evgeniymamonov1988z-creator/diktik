@@ -3,6 +3,7 @@ name: Build Windows (folder + installer, signed)
 on:
   workflow_dispatch:
   push:
+    branches: [ main, master ]
     tags:
       - 'v*'
 
@@ -92,6 +93,16 @@ jobs:
           $sig = Set-AuthenticodeSignature -FilePath $exe.FullName -Certificate $cert -TimestampServer "http://timestamp.digicert.com"
           Write-Host ('[OK] Signed exe -> ' + $sig.Status)
 
+      - name: Make FULL package (secret link) and mark folder as DEMO
+        shell: pwsh
+        run: |
+          # ПОЛНАЯ версия (для секретной ссылки): папка БЕЗ demo.flag.
+          Compress-Archive -Path 'dist\Diktik' -DestinationPath 'dist\Diktik-Full.zip' -Force
+          Write-Host '[OK] dist\Diktik-Full.zip (полная версия)'
+          # Делаем папку ДЕМО: кладём demo.flag рядом с .exe → демо 3 дня.
+          New-Item -ItemType File -Path 'dist\Diktik\demo.flag' -Force | Out-Null
+          Write-Host '[OK] demo.flag добавлен'
+
       - name: Package folder into ZIP
         shell: pwsh
         run: |
@@ -165,6 +176,7 @@ jobs:
           name: Diktik-VoiceNote-windows
           path: |
             dist/Diktik-VoiceNote-windows.zip
+            dist/Diktik-Full.zip
             dist/Ustanovka*.exe
           if-no-files-found: error
 
@@ -176,5 +188,6 @@ jobs:
           body: "\u0410\u0432\u0442\u043e\u043c\u0430\u0442\u0438\u0447\u0435\u0441\u043a\u0430\u044f \u0441\u0431\u043e\u0440\u043a\u0430. \u0412\u0441\u0442\u0440\u043e\u0435\u043d\u043d\u0430\u044f \u043a\u043e\u043c\u043f\u0430\u043a\u0442\u043d\u0430\u044f Java, \u043f\u043e\u0434\u043f\u0438\u0441\u044c \u0441\u043e\u0431\u0441\u0442\u0432\u0435\u043d\u043d\u044b\u043c \u0441\u0435\u0440\u0442\u0438\u0444\u0438\u043a\u0430\u0442\u043e\u043c."
           files: |
             dist/Diktik-VoiceNote-windows.zip
+            dist/Diktik-Full.zip
             dist/Ustanovka*.exe
           make_latest: true
