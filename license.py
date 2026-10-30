@@ -34,23 +34,44 @@ _DEMO_DIR = os.path.join(
 _DEMO_FILE = os.path.join(_DEMO_DIR, ".demo_date_" + PRODUCT_CODE)
 
 
+def _app_dirs():
+    """Все возможные папки с программой. Под Nuitka __file__
+    для субмодуля не указывает на папку с .exe, поэтому
+    проверяем sys.executable, sys.argv[0] и __file__."""
+    out = []
+    cands = [getattr(sys, "executable", None),
+             (sys.argv[0] if getattr(sys, "argv", None) else None),
+             __file__]
+    for p in cands:
+        try:
+            if p:
+                d = os.path.dirname(os.path.abspath(p))
+                if d and d not in out:
+                    out.append(d)
+        except Exception:
+            pass
+    return out or ["."]
+
+
 def _app_dir():
     """Папка, где лежит .exe (или .py при запуске из исходника)."""
     try:
-        if getattr(sys, "frozen", False):
-            return os.path.dirname(os.path.abspath(sys.executable))
-        return os.path.dirname(os.path.abspath(__file__))
+        return _app_dirs()[0]
     except Exception:
         return "."
 
 
 def _is_demo_edition():
     """Демо-сборка? Признак — рядом с программой файл demo.flag.
+    Проверяем все возможные папки (.exe / argv[0] / модуль).
     Нет файла → полная версия без ограничений."""
-    try:
-        return os.path.isfile(os.path.join(_app_dir(), "demo.flag"))
-    except Exception:
-        return False
+    for d in _app_dirs():
+        try:
+            if os.path.isfile(os.path.join(d, "demo.flag")):
+                return True
+        except Exception:
+            pass
+    return False
 
 
 def _read_reg_date():
