@@ -91,6 +91,8 @@ static void clear_date(void) {
     }
 }
 
+static int g_lang_en = 0;
+
 static void msg(const wchar_t *t) {
     MessageBoxW(NULL, t, L"Diktik", MB_OK | MB_ICONINFORMATION | MB_SETFOREGROUND);
 }
@@ -148,8 +150,19 @@ static void scan_subdirs(const wchar_t *base) {
     FindClose(h);
 }
 
+static void detect_lang(void) {
+    wchar_t ln[85] = {0};
+    if (GetEnvironmentVariableW(L"DIKTIK_LANG", ln, 85) && ln[0]) {
+        g_lang_en = (ln[0] == L'e' || ln[0] == L'E') ? 1 : 0;
+        return;
+    }
+    LANGID lid = GetUserDefaultUILanguage();
+    g_lang_en = (PRIMARYLANGID(lid) != LANG_RUSSIAN) ? 1 : 0;
+}
+
 int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdline, int show) {
     (void)hInst; (void)hPrev; (void)cmdline; (void)show;
+    detect_lang();
     g_exe[0] = L"diktik.exe";
     /* Diktik / VoiceNote */
     g_exe[1] = L"VoiceNote.exe";
@@ -209,16 +222,27 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdline, int show) {
     for (int i = 0; i < g_n; i++) if (try_unlock(g_cand[i])) found = 1;
 
     if (!found) {
-        if (!silent) msg(L"diktik.exe \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d.\n\n"
-                         L"\u0421\u043d\u0430\u0447\u0430\u043b\u0430 \u0443\u0441\u0442\u0430\u043d\u043e\u0432\u0438\u0442\u0435 \u043f\u0440\u043e\u0433\u0440\u0430\u043c\u043c\u0443 \u0438 \u0437\u0430\u0442\u0435\u043c \u0437\u0430\u043f\u0443\u0441\u0442\u0438\u0442\u0435 \u043a\u043b\u044e\u0447.");
+        if (!silent) {
+            if (g_lang_en)
+                msg(L"diktik.exe was not found.\n\n"
+                    L"Please install the program first, then run the key.");
+            else
+                msg(L"diktik.exe \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d.\n\n"
+                    L"\u0421\u043d\u0430\u0447\u0430\u043b\u0430 \u0443\u0441\u0442\u0430\u043d\u043e\u0432\u0438\u0442\u0435 \u043f\u0440\u043e\u0433\u0440\u0430\u043c\u043c\u0443 \u0438 \u0437\u0430\u0442\u0435\u043c \u0437\u0430\u043f\u0443\u0441\u0442\u0438\u0442\u0435 \u043a\u043b\u044e\u0447.");
+        }
         return 2;
     }
 
     clear_date();
 
-    if (!silent)
-        msg(L"\u0413\u043e\u0442\u043e\u0432\u043e! \u0422\u0435\u043f\u0435\u0440\u044c \u0443 \u0432\u0430\u0441 \u043f\u043e\u043b\u043d\u0430\u044f \u0432\u0435\u0440\u0441\u0438\u044f.\n\n"
-            L"\u041e\u0442\u043a\u0440\u043e\u0439\u0442\u0435 \u0414\u0438\u043a\u0442\u0438\u043a \u2014 \u043e\u0433\u0440\u0430\u043d\u0438\u0447\u0435\u043d\u0438\u0439 \u043f\u043e \u0434\u043d\u044f\u043c \u043d\u0435\u0442.");
+    if (!silent) {
+        if (g_lang_en)
+            msg(L"Done! You now have the full version.\n\n"
+                L"Open VoiceNote / Diktik \u2014 there is no time limit.");
+        else
+            msg(L"\u0413\u043e\u0442\u043e\u0432\u043e! \u0422\u0435\u043f\u0435\u0440\u044c \u0443 \u0432\u0430\u0441 \u043f\u043e\u043b\u043d\u0430\u044f \u0432\u0435\u0440\u0441\u0438\u044f.\n\n"
+                L"\u041e\u0442\u043a\u0440\u043e\u0439\u0442\u0435 \u0414\u0438\u043a\u0442\u0438\u043a \u2014 \u043e\u0433\u0440\u0430\u043d\u0438\u0447\u0435\u043d\u0438\u0439 \u043f\u043e \u0434\u043d\u044f\u043c \u043d\u0435\u0442.");
+    }
 
     self_delete();
     return 0;
