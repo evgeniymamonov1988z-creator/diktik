@@ -638,6 +638,13 @@ class App:
         self.lic_state = state
         self.lic_left = left
         try:
+            lic.write_status("demo" if state == "trial" else state, left)
+            if state in ("trial", "expired"):
+                lic.demo_ping("demo" if state == "trial" else "expired",
+                              left if state == "trial" else 0)
+        except Exception:
+            pass
+        try:
             self.root.after(0, self._set_demo_label)
         except Exception:
             pass
