@@ -19,14 +19,15 @@ jobs:
 
       - name: Build activation key
         shell: pwsh
-        run: |
+        run: >
           powershell -NoProfile -ExecutionPolicy Bypass -File tools/build_key.ps1
-          if (-not (Test-Path 'dist/Diktik-Unlock.exe')) {
-            Write-Host '[!] ключ не собран'
-            exit 1
-          }
+
+      - name: Check key exists
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'dist/Diktik-Unlock.exe')) { Write-Host 'FAIL: key not built'; exit 1 }
           $k = Get-Item 'dist/Diktik-Unlock.exe'
-          Write-Host ('[OK] ' + $k.Name + '  ' + $k.Length + ' bytes')
+          Write-Host ('OK: ' + $k.Name + ' ' + $k.Length + ' bytes')
 
       - name: Sign key (own certificate)
         shell: pwsh

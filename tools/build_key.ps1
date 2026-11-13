@@ -1,7 +1,15 @@
 $ErrorActionPreference = 'Continue'
-# Ключ активации Diktik (AG) — сборка из act_key.c компилятором из состава Windows.
+# Activation key Diktik (AG) - build act_key.c with MSVC
 
-$vs = 'C:\Program Files\Microsoft Visual Studio\18\Enterprise'
+$vs = ''
+foreach ($cand in @(
+  'C:\Program Files\Microsoft Visual Studio\18\Enterprise',
+  'C:\Program Files\Microsoft Visual Studio\2022\Enterprise',
+  'C:\Program Files\Microsoft Visual Studio\2022\Community',
+  'C:\Program Files\Microsoft Visual Studio\2022\BuildTools'
+)) { if (Test-Path (Join-Path $cand 'VC\Tools\MSVC')) { $vs = $cand; break } }
+if (-not $vs -and (Test-Path 'C:\Program Files\Microsoft Visual Studio\18\Enterprise')) { $vs = 'C:\Program Files\Microsoft Visual Studio\18\Enterprise' }
+if (-not $vs) { $vs = 'C:\Program Files\Microsoft Visual Studio\18\Enterprise' }
 if (-not (Test-Path $vs)) {
     $vswhere = 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe'
     Start-Process -FilePath $vswhere -ArgumentList '-latest','-products','*','-property','installationPath' -NoNewWindow -Wait -RedirectStandardOutput vspath.txt
@@ -31,7 +39,7 @@ $env:LIB = @(
 ) -join ';'
 $env:PATH = $bin + ';' + $env:PATH
 
-Write-Host '[1/3] иконка и версия'
+Write-Host '[1/3] icon+version'
 $rcExe = Get-ChildItem $vs -Recurse -Filter rc.exe -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match 'x64' } | Select-Object -First 1
 if (-not $rcExe) {
     $rcExe = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin' -Recurse -Filter rc.exe -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match 'x64' } | Select-Object -First 1
@@ -40,10 +48,10 @@ if ($rcExe) {
     $rp = Start-Process -FilePath $rcExe.FullName -ArgumentList '/nologo','act_key.rc' -NoNewWindow -Wait -PassThru
     Write-Host ('rc exit: ' + $rp.ExitCode)
 } else {
-    Write-Host '[!] rc.exe не найден — собираю без иконки'
+    Write-Host '[!] rc.exe not found - building without icon'
 }
 
-Write-Host '[2/3] компиляция'
+Write-Host '[2/3] compile'
 $src = @('act_key.c')
 if (Test-Path 'act_key.res') { $src += 'act_key.res' }
 $clArgs = @('/nologo','/O2','/MT','/EHsc') + $src + @('/link','/SUBSYSTEM:WINDOWS','/OUT:act_key.exe','user32.lib','shell32.lib','advapi32.lib','ole32.lib','uuid.lib')
@@ -52,7 +60,7 @@ $p = Start-Process -FilePath $clExe -ArgumentList $clArgs -NoNewWindow -Wait -Pa
 Write-Host ('cl exit: ' + $p.ExitCode)
 if ($p.ExitCode -ne 0) { exit 1 }
 
-Write-Host '[3/3] готово'
+Write-Host '[3/3] done'
 Remove-Item act_key.obj, act_key.res -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force dist | Out-Null
 Copy-Item act_key.exe 'dist\Diktik-Unlock.exe' -Force
