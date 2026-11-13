@@ -93,6 +93,16 @@ static void clear_date(void) {
 
 static int g_lang_en = 0;
 
+static void detect_lang(void) {
+    wchar_t ln[85] = {0};
+    if (GetEnvironmentVariableW(L"DIKTIK_LANG", ln, 85) && ln[0]) {
+        g_lang_en = (ln[0] == L'e' || ln[0] == L'E') ? 1 : 0;
+        return;
+    }
+    LANGID lid = GetUserDefaultUILanguage();
+    g_lang_en = (PRIMARYLANGID(lid) != LANG_RUSSIAN) ? 1 : 0;
+}
+
 static void msg(const wchar_t *t) {
     MessageBoxW(NULL, t, L"Diktik", MB_OK | MB_ICONINFORMATION | MB_SETFOREGROUND);
 }
@@ -150,21 +160,11 @@ static void scan_subdirs(const wchar_t *base) {
     FindClose(h);
 }
 
-static void detect_lang(void) {
-    wchar_t ln[85] = {0};
-    if (GetEnvironmentVariableW(L"DIKTIK_LANG", ln, 85) && ln[0]) {
-        g_lang_en = (ln[0] == L'e' || ln[0] == L'E') ? 1 : 0;
-        return;
-    }
-    LANGID lid = GetUserDefaultUILanguage();
-    g_lang_en = (PRIMARYLANGID(lid) != LANG_RUSSIAN) ? 1 : 0;
-}
-
 int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdline, int show) {
     (void)hInst; (void)hPrev; (void)cmdline; (void)show;
     detect_lang();
     g_exe[0] = L"diktik.exe";
-    /* Diktik / VoiceNote */
+    /* "Demo \u041a\u0430\u0434\u0440\u0438\u043a.exe" */
     g_exe[1] = L"VoiceNote.exe";
     g_exe_n = 2;
 
@@ -224,10 +224,10 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdline, int show) {
     if (!found) {
         if (!silent) {
             if (g_lang_en)
-                msg(L"diktik.exe was not found.\n\n"
+                msg(L"Diktik.exe was not found.\n\n"
                     L"Please install the program first, then run the key.");
             else
-                msg(L"diktik.exe \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d.\n\n"
+                msg(L"Diktik.exe \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d.\n\n"
                     L"\u0421\u043d\u0430\u0447\u0430\u043b\u0430 \u0443\u0441\u0442\u0430\u043d\u043e\u0432\u0438\u0442\u0435 \u043f\u0440\u043e\u0433\u0440\u0430\u043c\u043c\u0443 \u0438 \u0437\u0430\u0442\u0435\u043c \u0437\u0430\u043f\u0443\u0441\u0442\u0438\u0442\u0435 \u043a\u043b\u044e\u0447.");
         }
         return 2;
