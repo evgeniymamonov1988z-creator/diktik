@@ -1,0 +1,70 @@
+name: Build activation key only
+
+# Только ключ активации (маленький .exe). Без Python, Nuitka и библиотек —
+# нужен лишь компилятор C, который уже есть на windows-latest.
+# Запускается вручную кнопкой Run workflow или сам при изменении act_key.c.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ master, main ]
+    paths:
+      - 'act_key.c'
+      - 'act_key.rc'
+      - 'tools/build_key.ps1'
+      - '.github/workflows/build-key.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  key:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Build activation key
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File tools/build_key.ps1
+          if (-not (Test-Path 'dist/Diktik-Unlock.exe')) {
+            Write-Host '[!] ключ не собран'
+            exit 1
+          }
+          $k = Get-Item 'dist/Diktik-Unlock.exe'
+          Write-Host ('[OK] ' + $k.Name + '  ' + $k.Length + ' bytes')
+
+      - name: Sign key (own certificate)
+        if: ${{ secrets.SIGN_PFX_BASE64 != '' }}
+        shell: pwsh
+        run: |
+          $pfxBytes = [Convert]::FromBase64String($env:SIGN_PFX_BASE64)
+          $pfxPath = Join-Path $env:RUNNER_TEMP 'sign.pfx'
+          [IO.File]::WriteAllBytes($pfxPath, $pfxBytes)
+          $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($pfxPath, $env:SIGN_PFX_PASSWORD, 'Exportable,PersistKeySet')
+          $sig = Set-AuthenticodeSignature -FilePath 'dist/Diktik-Unlock.exe' -Certificate $cert -TimestampServer 'http://timestamp.digicert.com'
+          Write-Host ('[OK] подпись: ' + $sig.Status)
+        env:
+          SIGN_PFX_BASE64: ${{ secrets.SIGN_PFX_BASE64 }}
+          SIGN_PFX_PASSWORD: ${{ secrets.SIGN_PFX_PASSWORD }}
+
+      - name: Upload key
+        uses: actions/upload-artifact@v4
+        with:
+          name: Diktik-Unlock.exe
+          path: dist/Diktik-Unlock.exe
+          if-no-files-found: error
+
+      - name: Publish to key release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # отдельный релиз key-latest, чтобы ссылка на ключ всегда была одной и той же
+          gh release view key-latest 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create key-latest --title 'Activation key' --notes 'Klyuch aktivacii (poslednyaya sborka)'
+          }
+          gh release upload key-latest 'dist/Diktik-Unlock.exe' --clobber
+          Write-Host '[OK] ключ загружен в релиз key-latest'
