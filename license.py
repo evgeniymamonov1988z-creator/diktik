@@ -245,3 +245,67 @@ def machine_id():
 def buy_params():
     """Параметры для ссылки оплаты (без отпечатка компьютера)."""
     return {"product": PRODUCT_CODE}
+
+
+# ---------------------------------------------------------------
+# Единый вид демо у всех трёх программ: файл статуса.
+# ---------------------------------------------------------------
+def _status_file():
+    """Понятный файл со статусом демо рядом с программой."""
+    return os.path.join(_app_dir(), "status_" + PRODUCT_CODE + ".txt")
+
+
+def write_status(status, days_left, base=None):
+    """Сохранить status_AG.txt (подсказка для человека).
+    status: 'licensed' | 'demo' | 'expired'."""
+    try:
+        import json
+        import datetime
+        if status == "licensed":
+            code, text = "licensed", "Полная версия"
+        elif status == "expired":
+            code, text = "expired", "Демо закончилось"
+        else:
+            code, text = "demo", "Демо, осталось дней: " + str(int(days_left))
+        data = {
+            "product": PRODUCT_CODE,
+            "status": code,
+            "status_text": text,
+            "days_left": int(days_left or 0),
+            "updated": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        with open(_status_file(), "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+
+def demo_ping(status="demo", days=0):
+    """Тихий сигнал «демо-копию запустили» на наш сервер.
+    Ничего не блокирует; при любой ошибке молчит.
+    Компьютер владельца (owner.flag) не считается."""
+    try:
+        if _is_owner():
+            return
+        cid = _copy_id()
+        if not cid:
+            return
+
+        def _send():
+            try:
+                import urllib.parse
+                import urllib.request
+                q = urllib.parse.urlencode({"instance": cid,
+                                            "status": status,
+                                            "days": int(days or 0)})
+                req = urllib.request.Request(
+                    _PING_URL + "?" + q,
+                    headers={"User-Agent": "MAMONOV-DemoPing/1.0"})
+                urllib.request.urlopen(req, timeout=3).read()
+            except Exception:
+                pass
+
+        import threading
+        threading.Thread(target=_send, daemon=True).start()
+    except Exception:
+        pass
