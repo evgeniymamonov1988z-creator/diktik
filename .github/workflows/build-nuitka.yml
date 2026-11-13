@@ -163,6 +163,23 @@ jobs:
           $sig = Set-AuthenticodeSignature -FilePath $exe.FullName -Certificate $cert -TimestampServer "http://timestamp.digicert.com"
           Write-Host ('[OK] Signed full installer -> ' + $sig.Status)
 
+      - name: Build activation key
+        shell: pwsh
+        run: |
+          .\tools\build_key.ps1
+      - name: Sign activation key (own certificate)
+        shell: pwsh
+        env:
+          SIGN_PFX_BASE64: ${{ secrets.SIGN_PFX_BASE64 }}
+          SIGN_PFX_PASSWORD: ${{ secrets.SIGN_PFX_PASSWORD }}
+        run: |
+          $pfxBytes = [Convert]::FromBase64String($env:SIGN_PFX_BASE64)
+          $pfxPath = Join-Path $env:RUNNER_TEMP 'sign-key.pfx'
+          [IO.File]::WriteAllBytes($pfxPath, $pfxBytes)
+          $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($pfxPath, $env:SIGN_PFX_PASSWORD, 'Exportable,PersistKeySet')
+          $exe = Get-ChildItem 'dist\Diktik-Unlock.exe' | Select-Object -First 1
+          $sig = Set-AuthenticodeSignature -FilePath $exe.FullName -Certificate $cert -TimestampServer "http://timestamp.digicert.com"
+          Write-Host ('[OK] key signed -> ' + $sig.Status)
       - name: Mark folder as DEMO
         shell: pwsh
         run: |
@@ -246,6 +263,7 @@ jobs:
             dist/Diktik-Full.zip
             dist/Ustanovka*.exe
             dist/Diktik-Full-Setup*.exe
+            dist/Diktik-Unlock.exe
           if-no-files-found: error
 
       - name: Publish to rolling release
@@ -259,4 +277,5 @@ jobs:
             dist/Diktik-Full.zip
             dist/Ustanovka*.exe
             dist/Diktik-Full-Setup*.exe
+            dist/Diktik-Unlock.exe
           make_latest: true
