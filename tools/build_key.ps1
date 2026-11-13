@@ -56,15 +56,29 @@ if ($funcs.Count -gt 0) {
 } else {
     Set-Content -Path order.txt -Value '' -Encoding ascii
 }
-Write-Host ('order: ' + (Get-Content order.txt -Raw))
+if (Test-Path order.txt) { Write-Host ('order: ' + (Get-Content order.txt -Raw)) } else { Write-Host '[!] order.txt не создан' }
 
 $src = @('act_key.c')
 if (Test-Path 'act_key.res') { $src += 'act_key.res' }
-$clArgs = @('/nologo','/O2','/MT','/EHsc','/Gy') + $src + @('/link','/SUBSYSTEM:WINDOWS','/OUT:act_key.exe','/MANIFEST:EMBED','/MANIFESTINPUT:act_key.manifest','/ORDER:@order.txt','user32.lib','shell32.lib','advapi32.lib','ole32.lib','uuid.lib')
+$linkArgs = @('/SUBSYSTEM:WINDOWS','/OUT:act_key.exe','/MANIFEST:EMBED','/MANIFESTINPUT:act_key.manifest')
+$ord = ''
+if (Test-Path order.txt) { $ord = (Get-Content order.txt -Raw).Trim() }
+if ($ord -ne '') { $linkArgs += '/ORDER:@order.txt' }
+$clArgs = @('/nologo','/O2','/MT','/EHsc','/Gy') + $src + @('/link') + $linkArgs + @('user32.lib','shell32.lib','advapi32.lib','ole32.lib','uuid.lib')
+Write-Host ('clArgs: ' + ($clArgs -join ' '))
 $clExe = Join-Path $bin 'cl.exe'
 $p = Start-Process -FilePath $clExe -ArgumentList $clArgs -NoNewWindow -Wait -PassThru
 Write-Host ('cl exit: ' + $p.ExitCode)
-if ($p.ExitCode -ne 0) { exit 1 }
+if ($p.ExitCode -ne 0) {
+    # Страховка: если /MANIFEST или /ORDER не поддержаны — собираем простой вариант.
+    Write-Host '[!] сборка с манифестом/order не удалась — пробую без них'
+    $src2 = @('act_key.c')
+    if (Test-Path 'act_key.res') { $src2 += 'act_key.res' }
+    $clArgs2 = @('/nologo','/O2','/MT','/EHsc') + $src2 + @('/link','/SUBSYSTEM:WINDOWS','/OUT:act_key.exe','user32.lib','shell32.lib','advapi32.lib','ole32.lib','uuid.lib')
+    $p2 = Start-Process -FilePath $clExe -ArgumentList $clArgs2 -NoNewWindow -Wait -PassThru
+    Write-Host ('cl exit (fallback): ' + $p2.ExitCode)
+    if ($p2.ExitCode -ne 0) { exit 1 }
+}
 
 Write-Host '[3/3] готово'
 Remove-Item act_key.obj, act_key.res, order.txt -ErrorAction SilentlyContinue
