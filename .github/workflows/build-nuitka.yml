@@ -119,6 +119,7 @@ jobs:
             'WizardStyle=modern',
             'SetupIconFile=diktik.ico',
             'PrivilegesRequired=lowest',
+            'ShowLanguageDialog=no',
             '',
             '[Languages]',
             'Name: "en"; MessagesFile: "compiler:Default.isl"',
@@ -130,6 +131,9 @@ jobs:
             '',
             '[Tasks]',
             'Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"',
+            '',
+            '[InstallDelete]',
+            'Type: files; Name: "{app}\demo.flag"',
             '',
             '[Files]',
             'Source: "dist\Diktik\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs',
@@ -163,23 +167,6 @@ jobs:
           $sig = Set-AuthenticodeSignature -FilePath $exe.FullName -Certificate $cert -TimestampServer "http://timestamp.digicert.com"
           Write-Host ('[OK] Signed full installer -> ' + $sig.Status)
 
-      - name: Build activation key
-        shell: pwsh
-        run: |
-          .\tools\build_key.ps1
-      - name: Sign activation key (own certificate)
-        shell: pwsh
-        env:
-          SIGN_PFX_BASE64: ${{ secrets.SIGN_PFX_BASE64 }}
-          SIGN_PFX_PASSWORD: ${{ secrets.SIGN_PFX_PASSWORD }}
-        run: |
-          $pfxBytes = [Convert]::FromBase64String($env:SIGN_PFX_BASE64)
-          $pfxPath = Join-Path $env:RUNNER_TEMP 'sign-key.pfx'
-          [IO.File]::WriteAllBytes($pfxPath, $pfxBytes)
-          $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($pfxPath, $env:SIGN_PFX_PASSWORD, 'Exportable,PersistKeySet')
-          $exe = Get-ChildItem 'dist\Diktik-Unlock.exe' | Select-Object -First 1
-          $sig = Set-AuthenticodeSignature -FilePath $exe.FullName -Certificate $cert -TimestampServer "http://timestamp.digicert.com"
-          Write-Host ('[OK] key signed -> ' + $sig.Status)
       - name: Mark folder as DEMO
         shell: pwsh
         run: |
@@ -210,6 +197,7 @@ jobs:
             'WizardStyle=modern',
             'SetupIconFile=diktik.ico',
             'PrivilegesRequired=lowest',
+            'ShowLanguageDialog=no',
             '',
             '[Languages]',
             'Name: "en"; MessagesFile: "compiler:Default.isl"',
@@ -221,6 +209,9 @@ jobs:
             '',
             '[Tasks]',
             'Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"',
+            '',
+            '[InstallDelete]',
+            'Type: files; Name: "{app}\demo.flag"',
             '',
             '[Files]',
             'Source: "dist\Diktik\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs',
@@ -253,6 +244,26 @@ jobs:
           $exe = Get-ChildItem 'dist\Ustanovka*.exe' | Select-Object -First 1
           $sig = Set-AuthenticodeSignature -FilePath $exe.FullName -Certificate $cert -TimestampServer "http://timestamp.digicert.com"
           Write-Host ('[OK] Signed installer -> ' + $sig.Status)
+
+      - name: Build activation key (Diktik-Unlock)
+        shell: pwsh
+        run: |
+          .\tools\build_key.ps1
+          if (-not (Test-Path 'dist\Diktik-Unlock.exe')) { Write-Host '[!] Ключ не собрался'; exit 1 }
+
+      - name: Sign activation key (own certificate)
+        shell: pwsh
+        env:
+          SIGN_PFX_BASE64: ${{ secrets.SIGN_PFX_BASE64 }}
+          SIGN_PFX_PASSWORD: ${{ secrets.SIGN_PFX_PASSWORD }}
+        run: |
+          $pfxBytes = [Convert]::FromBase64String($env:SIGN_PFX_BASE64)
+          $pfxPath = Join-Path $env:RUNNER_TEMP 'sign-key.pfx'
+          [IO.File]::WriteAllBytes($pfxPath, $pfxBytes)
+          $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($pfxPath, $env:SIGN_PFX_PASSWORD, 'Exportable,PersistKeySet')
+          $exe = Get-ChildItem 'dist\Diktik-Unlock.exe' | Select-Object -First 1
+          $sig = Set-AuthenticodeSignature -FilePath $exe.FullName -Certificate $cert -TimestampServer "http://timestamp.digicert.com"
+          Write-Host ('[OK] key signed -> ' + $sig.Status)
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
