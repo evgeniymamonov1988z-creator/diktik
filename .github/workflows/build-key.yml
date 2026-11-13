@@ -29,7 +29,6 @@ jobs:
           Write-Host ('[OK] ' + $k.Name + '  ' + $k.Length + ' bytes')
 
       - name: Sign key (own certificate)
-        if: ${{ secrets.SIGN_PFX_BASE64 != '' }}
         shell: pwsh
         run: |
           $pfxBytes = [Convert]::FromBase64String($env:SIGN_PFX_BASE64)
