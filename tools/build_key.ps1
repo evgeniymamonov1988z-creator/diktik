@@ -57,4 +57,4 @@ Remove-Item act_key.obj, act_key.res -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force dist | Out-Null
 Copy-Item act_key.exe 'dist\Diktik-Unlock.exe' -Force
 $k = Get-Item 'dist\Diktik-Unlock.exe'
-Write-Host ('[OK] ' + $k.Name + '  ' + [math]::Round($k.Length/1KB,1) + ' KB')
+Write-Host ('[OK] ' + $k.Name + '  ' + $k.Length + ' bytes')
