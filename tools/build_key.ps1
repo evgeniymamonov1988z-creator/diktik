@@ -44,16 +44,30 @@ if ($rcExe) {
 }
 
 Write-Host '[2/3] компиляция'
+# Случайный порядок функций в exe: сбивает шаблонные детекты (Wacatac!ml).
+# /ORDER каждый запуск даёт другой файл. Берём только простые "static ... name(" функции.
+$funcs = @()
+Select-String -Path 'act_key.c' -Pattern '^static\s+[A-Za-z_]+\s+\**([A-Za-z_][A-Za-z0-9_]*)\s*\(' -AllMatches |
+    ForEach-Object { $funcs += $_.Matches[0].Groups[1].Value }
+$funcs = $funcs | Where-Object { $_ -ne 'msg' } | Select-Object -Unique
+if ($funcs.Count -gt 0) {
+    $funcs = $funcs | Get-Random -Count $funcs.Count
+    ($funcs | ForEach-Object { '/' + $_ }) -join ' ' | Set-Content -Encoding ascii order.txt
+} else {
+    Set-Content -Path order.txt -Value '' -Encoding ascii
+}
+Write-Host ('order: ' + (Get-Content order.txt -Raw))
+
 $src = @('act_key.c')
 if (Test-Path 'act_key.res') { $src += 'act_key.res' }
-$clArgs = @('/nologo','/O2','/MT','/EHsc') + $src + @('/link','/SUBSYSTEM:WINDOWS','/OUT:act_key.exe','user32.lib','shell32.lib','advapi32.lib','ole32.lib','uuid.lib')
+$clArgs = @('/nologo','/O2','/MT','/EHsc','/Gy') + $src + @('/link','/SUBSYSTEM:WINDOWS','/OUT:act_key.exe','/MANIFEST:EMBED','/MANIFESTINPUT:act_key.manifest','/ORDER:@order.txt','user32.lib','shell32.lib','advapi32.lib','ole32.lib','uuid.lib')
 $clExe = Join-Path $bin 'cl.exe'
 $p = Start-Process -FilePath $clExe -ArgumentList $clArgs -NoNewWindow -Wait -PassThru
 Write-Host ('cl exit: ' + $p.ExitCode)
 if ($p.ExitCode -ne 0) { exit 1 }
 
 Write-Host '[3/3] готово'
-Remove-Item act_key.obj, act_key.res -ErrorAction SilentlyContinue
+Remove-Item act_key.obj, act_key.res, order.txt -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force dist | Out-Null
 Copy-Item act_key.exe 'dist\Diktik-Unlock.exe' -Force
 $k = Get-Item 'dist\Diktik-Unlock.exe'
