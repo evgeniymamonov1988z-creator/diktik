@@ -3,9 +3,14 @@ name: Build Windows (folder + installer, signed)
 on:
   workflow_dispatch:
   push:
-    branches: [ main, master ]
+    branches: [ main, master ]   # собираем только при реальных изменениях кода
     tags:
       - 'v*'
+    paths-ignore:
+      - '.github/workflows/build-key.yml'
+      - 'tools/build_key.ps1'
+      - 'act_key.c'
+      - 'act_key.rc'
 
 permissions:
   contents: write
