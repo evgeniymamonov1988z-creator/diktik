@@ -765,6 +765,11 @@ def main():
             pass
         return
     try:
+        if HAS_LIC:
+            lic.metrika_launch_page()
+    except Exception:
+        pass
+    try:
         root = tk.Tk()
         App(root)
         root.mainloop()

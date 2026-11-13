@@ -19,6 +19,7 @@ import os
 import sys
 import time
 import math
+import hashlib
 
 # Буквенный код продукта («Кадрик» = AF)
 PRODUCT_CODE = "AG"
@@ -134,6 +135,75 @@ def _first_run_ts():
     _write_reg_date(first)
     _write_file_date(first)
     return first
+
+
+# ---------------------------------------------------------------
+# Отметка запуска демо в Яндекс.Метрике (цель «Запуск программы»).
+# Один раз на копию открываем служебную страницу в обычном браузере:
+# Метрика видит настоящий визит человека и засчитывает цель.
+# Тихо: при любой ошибке ничего не происходит.
+# ---------------------------------------------------------------
+_LAUNCH_PAGE = "https://evgeniymamonov.com/zapusk-ag.html"
+
+
+def _copy_id():
+    """Обезличенный номер копии (создаётся один раз, без личных данных)."""
+    try:
+        os.makedirs(_DEMO_DIR, exist_ok=True)
+        f = os.path.join(_DEMO_DIR, ".copy_id_" + PRODUCT_CODE)
+        if os.path.isfile(f):
+            with open(f, "r", encoding="utf-8") as fh:
+                cid = fh.read().strip()
+            if cid:
+                return cid
+        import uuid
+        cid = PRODUCT_CODE + str(uuid.uuid4().int)[:9]
+        with open(f, "w", encoding="utf-8") as fh:
+            fh.write(cid)
+        return cid
+    except Exception:
+        return ""
+
+
+def _is_owner():
+    """Компьютер владельца (файл owner.flag) — запуски не считаем."""
+    for d in _app_dirs():
+        try:
+            if os.path.isfile(os.path.join(d, "owner.flag")):
+                return True
+        except Exception:
+            pass
+    try:
+        if os.path.isfile(os.path.join(_DEMO_DIR, "owner.flag")):
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def metrika_launch_page():
+    """Один раз на копию открыть служебную страницу, чтобы Метрика
+    засчитала запуск демо. Повторные запуски окно не открывают."""
+    try:
+        if not _is_demo_edition() or _is_owner():
+            return
+        cid = _copy_id()
+        if not cid:
+            return
+        tok = hashlib.sha1((cid + _LAUNCH_PAGE).encode("utf-8")).hexdigest()[:8]
+        mark = os.path.join(_DEMO_DIR, ".mh_" + PRODUCT_CODE + "_" + tok)
+        if os.path.isfile(mark):
+            return
+        try:
+            with open(mark, "w", encoding="utf-8") as fh:
+                fh.write(cid)
+        except Exception:
+            return
+        import threading
+        import webbrowser
+        threading.Timer(1.5, lambda: webbrowser.open(_LAUNCH_PAGE, new=0, autoraise=False)).start()
+    except Exception:
+        pass
 
 
 def evaluate():
