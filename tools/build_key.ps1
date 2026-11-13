@@ -1,15 +1,7 @@
 $ErrorActionPreference = 'Continue'
 # Ключ активации Diktik (AG) — сборка из act_key.c компилятором из состава Windows.
 
-$vs = ''
-foreach ($cand in @(
-  'C:\Program Files\Microsoft Visual Studio\18\Enterprise',
-  'C:\Program Files\Microsoft Visual Studio\2022\Enterprise',
-  'C:\Program Files\Microsoft Visual Studio\2022\Community',
-  'C:\Program Files\Microsoft Visual Studio\2022\BuildTools'
-)) { if (Test-Path (Join-Path $cand 'VC\Tools\MSVC')) { $vs = $cand; break } }
-if (-not $vs -and (Test-Path 'C:\Program Files\Microsoft Visual Studio\18\Enterprise')) { $vs = 'C:\Program Files\Microsoft Visual Studio\18\Enterprise' }
-if (-not $vs) { $vs = 'C:\Program Files\Microsoft Visual Studio\18\Enterprise' }
+$vs = 'C:\Program Files\Microsoft Visual Studio\18\Enterprise'
 if (-not (Test-Path $vs)) {
     $vswhere = 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe'
     Start-Process -FilePath $vswhere -ArgumentList '-latest','-products','*','-property','installationPath' -NoNewWindow -Wait -RedirectStandardOutput vspath.txt
