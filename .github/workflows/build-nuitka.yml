@@ -323,6 +323,10 @@ jobs:
           foreach ($f in @('dist/Ustanovka*.exe', 'dist/Diktik-Full-Setup.exe')) {
             if (-not (Test-Path -LiteralPath $f)) { Write-Host ('[i] нет файла ' + $f); $okAll = $false; continue }
             $name = Split-Path -LiteralPath $f -Leaf
+            if (-not (Test-Path -LiteralPath $f)) {
+              $g = Get-ChildItem -Path $f | Select-Object -First 1
+              if ($g) { $f = $g.FullName; $name = $g.Name; Write-Host ('[i] файл: ' + $name) }
+            }
             $done = $false
             foreach ($dir in @('domains/evgeniymamonov.com/public_html/', 'domains/evgeniymamonov.com/public_html/files/')) {
               if ($done) { break }
