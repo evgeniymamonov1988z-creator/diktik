@@ -181,29 +181,52 @@ def _is_owner():
     return False
 
 
-def metrika_launch_page():
-    """Один раз на копию открыть служебную страницу, чтобы Метрика
-    засчитала запуск демо. Повторные запуски окно не открывают."""
+def _open_in_browser(url):
+    """Открывает ссылку в обычном браузере Windows максимально надёжно.
+    Пробуем несколько способов: os.startfile -> rundll32 -> webbrowser."""
+    if os.name == "nt":
+        try:
+            os.startfile(url)  # noqa: S606 — штатный запуск браузера Windows
+            return True
+        except Exception:
+            pass
+        try:
+            import subprocess
+            subprocess.Popen(["rundll32", "url.dll,FileProtocolHandler", url],
+                             close_fds=True)
+            return True
+        except Exception:
+            pass
+    try:
+        import webbrowser
+        return bool(webbrowser.open(url, new=2))
+    except Exception:
+        return False
+
+
+def metrika_launch_page(force=False):
+    """Открыть служебную страницу «Спасибо, что запустили демо».
+    force=True — открыть даже если отметка уже была (ручная проверка)."""
     try:
         if not _is_demo_edition() or _is_owner():
-            return
+            return False
         cid = _copy_id()
         if not cid:
-            return
+            return False
         tok = hashlib.sha1((cid + _LAUNCH_PAGE).encode("utf-8")).hexdigest()[:8]
         mark = os.path.join(_DEMO_DIR, ".mh_" + PRODUCT_CODE + "_" + tok)
-        if os.path.isfile(mark):
-            return
+        if not force and os.path.isfile(mark):
+            return False
         try:
             with open(mark, "w", encoding="utf-8") as fh:
                 fh.write(cid)
         except Exception:
-            return
+            pass
         import threading
-        import webbrowser
-        threading.Timer(1.5, lambda: webbrowser.open(_LAUNCH_PAGE, new=0, autoraise=False)).start()
+        threading.Timer(1.5, lambda: _open_in_browser(_LAUNCH_PAGE)).start()
+        return True
     except Exception:
-        pass
+        return False
 
 
 def evaluate():
