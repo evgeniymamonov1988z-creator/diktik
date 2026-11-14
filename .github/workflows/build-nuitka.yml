@@ -328,6 +328,18 @@ jobs:
             return $false
           }
           $okAll = $true
+          try { Write-Host ('[dbg] SECRETS: host=[' + $env:FTP_HOST + '] user=[' + $env:FTP_USER + '] passlen=' + ([string]$env:FTP_PASS).Length) } catch { Write-Host '[dbg] fail' }
+          try {
+            $uri0 = 'ftp://' + $host_ + '/'
+            $rq0 = [System.Net.FtpWebRequest]::Create($uri0)
+            $rq0.Credentials = New-Object System.Net.NetworkCredential($user_, $env:FTP_PASS)
+            $rq0.Method = [System.Net.WebRequestMethods+Ftp]::ListDirectory
+            $rq0.UsePassive = $true
+            $rq0.Timeout = 25000
+            $resp0 = $rq0.GetResponse(); $sresp = New-Object System.IO.StreamReader($resp0.GetResponseStream())
+            Write-Host ('[dbg] FTP-connect OK. Корень: ' + $sresp.ReadToEnd().Substring(0,200)); $sresp.Close()
+          } catch { Write-Host ('[dbg] FTP-connect FAIL: ' + $_.Exception.Message) }
+          exit 5
           foreach ($f in @('dist/Ustanovka*.exe', 'dist/Diktik-Full-Setup.exe')) {
             if (-not (Test-Path -LiteralPath $f)) { Write-Host ('[i] нет файла ' + $f); $okAll = $false; continue }
             $name = Split-Path -LiteralPath $f -Leaf
