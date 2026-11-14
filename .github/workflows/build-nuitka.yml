@@ -283,7 +283,7 @@ jobs:
           try {
             $c = New-Object System.Net.Sockets.TcpClient
             $ar = $c.BeginConnect($host_, 21, $null, $null)
-            if (-not $ar.AsyncWaitHandle.WaitOne(15000)) { Write-Host '[dbg] TCP 21: TIMEOUT' } else { $c.EndConnect($ar); Write-Host '[dbg] TCP 21: OK' }
+            if (-not $ar.AsyncWaitHandle.WaitOne(15000)) { Write-Host '[dbg] TCP21 TIMEOUT'; exit 3 } else { $c.EndConnect($ar); Write-Host '[dbg] TCP 21: OK' }
             $c.Close()
           } catch { Write-Host ('[dbg] TCP 21: FAIL ' + $_.Exception.Message) }
           $host_ = $env:FTP_HOST; if (-not $host_) { $host_ = '141.8.192.25' }
