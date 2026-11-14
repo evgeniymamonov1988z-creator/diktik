@@ -280,16 +280,12 @@ jobs:
           Write-Host ('[dbg] PASS_len=' + ($env:FTP_PASS | Measure-Object -Character).Characters + ' USER=[' + $env:FTP_USER + '] HOST=[' + $env:FTP_HOST + ']')
           if ($env:FTP_PASS) { Write-Host ('[dbg] PASS_md5=' + ([System.BitConverter]::ToString([System.Security.Cryptography.MD5]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes($env:FTP_PASS))).Replace('-','').ToLower()) + ' PASS_tail=' + $env:FTP_PASS.Substring([Math]::Max(0,$env:FTP_PASS.Length-2))) }
           if (-not $env:FTP_PASS) { Write-Host '[!] Нет секрета FTP_PASSWORD'; exit 1 }
-          try {
-            $c = New-Object System.Net.Sockets.TcpClient
-            $ar = $c.BeginConnect($host_, 21, $null, $null)
-            if (-not $ar.AsyncWaitHandle.WaitOne(15000)) { Write-Host '[dbg] TCP21 TIMEOUT'; exit 3 } else { $c.EndConnect($ar); Write-Host '[dbg] TCP 21: OK' }
-            $c.Close()
-          } catch { Write-Host ('[dbg] TCP 21: FAIL ' + $_.Exception.Message) }
           $host_ = $env:FTP_HOST; if (-not $host_) { $host_ = '141.8.192.25' }
           $user_ = $env:FTP_USER; if (-not $user_) { $user_ = 'a1306338' }
+          $baseUrl = $env:FTP_BASE_URL; if (-not $baseUrl) { $baseUrl = 'ftp://' + $host_ + '/' }
+          if (-not $baseUrl.EndsWith('/')) { $baseUrl = $baseUrl + '/' }
           function Get-RemoteSize($remote) {
-            $uri = 'ftp://' + $host_ + '/' + $remote
+            $uri = $baseUrl + $remote
             $rq = [System.Net.FtpWebRequest]::Create($uri)
             $rq.Credentials = New-Object System.Net.NetworkCredential($user_, $env:FTP_PASS)
             $rq.Method = [System.Net.WebRequestMethods+Ftp]::GetFileSize
@@ -299,7 +295,7 @@ jobs:
           }
           function Try-Put($remote, $local) {
             $size = (Get-Item $local).Length
-            $uri = 'ftp://' + $host_ + '/' + $remote
+            $uri = $baseUrl + $remote
             $rq = [System.Net.FtpWebRequest]::Create($uri)
             $rq.Credentials = New-Object System.Net.NetworkCredential($user_, $env:FTP_PASS)
             $rq.Method = [System.Net.WebRequestMethods+Ftp]::UploadFile
@@ -328,18 +324,6 @@ jobs:
             return $false
           }
           $okAll = $true
-          try { Write-Host ('[dbg] SECRETS: host=[' + $env:FTP_HOST + '] user=[' + $env:FTP_USER + '] passlen=' + ([string]$env:FTP_PASS).Length) } catch { Write-Host '[dbg] fail' }
-          try {
-            $uri0 = 'ftp://' + $host_ + '/'
-            $rq0 = [System.Net.FtpWebRequest]::Create($uri0)
-            $rq0.Credentials = New-Object System.Net.NetworkCredential($user_, $env:FTP_PASS)
-            $rq0.Method = [System.Net.WebRequestMethods+Ftp]::ListDirectory
-            $rq0.UsePassive = $true
-            $rq0.Timeout = 25000
-            $resp0 = $rq0.GetResponse(); $sresp = New-Object System.IO.StreamReader($resp0.GetResponseStream())
-            Write-Host ('[dbg] FTP-connect OK. Корень: ' + $sresp.ReadToEnd().Substring(0,200)); $sresp.Close()
-          } catch { Write-Host ('[dbg] FTP-connect FAIL: ' + $_.Exception.Message) }
-          exit 5
           foreach ($f in @('dist/Ustanovka*.exe', 'dist/Diktik-Full-Setup.exe')) {
             if (-not (Test-Path -LiteralPath $f)) { Write-Host ('[i] нет файла ' + $f); $okAll = $false; continue }
             $name = Split-Path -LiteralPath $f -Leaf
@@ -348,7 +332,7 @@ jobs:
               if ($g) { $f = $g.FullName; $name = $g.Name; Write-Host ('[i] файл: ' + $name) }
             }
             $done = $false
-            foreach ($dir in @('domains/evgeniymamonov.com/public_html/', 'domains/evgeniymamonov.com/public_html/files/')) {
+            foreach ($dir in @('', 'files/')) {
               if ($done) { break }
               $done = Try-Put ($dir + $name) $f
             }
