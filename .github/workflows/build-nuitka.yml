@@ -277,13 +277,13 @@ jobs:
           FTP_PASS: ${{ secrets.FTP_PASSWORD }}
         run: |
           $ErrorActionPreference = 'Continue'
-          Write-Host ('[dbg] PASS_len=' + ($env:FTP_PASS | Measure-Object -Character).Characters + ' USER=[' + $env:FTP_USER + '] HOST=[' + $env:FTP_HOST + ']')
-          if ($env:FTP_PASS) { Write-Host ('[dbg] PASS_md5=' + ([System.BitConverter]::ToString([System.Security.Cryptography.MD5]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes($env:FTP_PASS))).Replace('-','').ToLower()) + ' PASS_tail=' + $env:FTP_PASS.Substring([Math]::Max(0,$env:FTP_PASS.Length-2))) }
           if (-not $env:FTP_PASS) { Write-Host '[!] Нет секрета FTP_PASSWORD'; exit 1 }
           $host_ = $env:FTP_HOST; if (-not $host_) { $host_ = '141.8.192.25' }
+          $host_ = ($host_ -replace '^[a-zA-Z]+://', '').Trim().TrimEnd('/')
           $user_ = $env:FTP_USER; if (-not $user_) { $user_ = 'a1306338' }
-          $baseUrl = $env:FTP_BASE_URL; if (-not $baseUrl) { $baseUrl = 'ftp://' + $host_ + '/' }
-          if (-not $baseUrl.EndsWith('/')) { $baseUrl = $baseUrl + '/' }
+          # Заливаем в папку сайта, а не в корень FTP (корень не виден из интернета).
+          $baseUrl = 'ftp://' + $host_ + '/domains/evgeniymamonov.com/public_html/'
+          Write-Host ('[i] FTP: ' + $baseUrl)
           function Get-RemoteSize($remote) {
             $uri = $baseUrl + $remote
             $rq = [System.Net.FtpWebRequest]::Create($uri)
