@@ -164,21 +164,14 @@ def norm(s):
 
 # ---------------------------------------------------------------- прогон
 CONFIGS = [
-    dict(key="A", name="Как сейчас (small, пауза 0.35 с, фраза ≤5 с, язык авто)",
-         model="small", end=0.35, maxp=5, beam=1, lang=None, prompt=False, adaptive=False),
-    dict(key="B", name="B: пауза 0.9 с, фраза ≤20 с, контекст",
-         model="small", end=0.9, maxp=20, beam=1, lang=None, prompt=True, adaptive=False),
-    dict(key="C", name="C: B + язык ru",
-         model="small", end=0.9, maxp=20, beam=1, lang="ru", prompt=True, adaptive=False),
-    dict(key="D", name="D: C + beam 5",
-         model="small", end=0.9, maxp=20, beam=5, lang="ru", prompt=True, adaptive=False),
-    dict(key="E", name="E: D + адаптивный порог тишины",
-         model="small", end=0.9, maxp=20, beam=5, lang="ru", prompt=True, adaptive=True),
-    dict(key="F", name="F: E на модели large-v3-turbo",
-         model="large-v3-turbo", end=0.9, maxp=20, beam=5, lang="ru", prompt=True, adaptive=True),
+    dict(key="A", name="Как было (small, пауза 0.35 с, фраза ≤5 с, beam 1, язык ru)",
+         model="small", end=0.35, maxp=5, beam=1, lang="ru", prompt=False, adaptive=False),
+    dict(key="N", name="Новый Диктик (small, пауза 0.9 с, фраза ≤15 с, beam 5, контекст)",
+         model="small", end=0.9, maxp=15, beam=5, lang="ru", prompt=True, adaptive=False),
+    dict(key="T", name="То же на large-v3-turbo",
+         model="large-v3-turbo", end=0.9, maxp=15, beam=5, lang="ru", prompt=True, adaptive=False),
 ]
-NOISY_KEYS = {"A", "D", "E"}
-
+NOISY_KEYS = {"A", "N", "T"}
 models = {}
 
 
