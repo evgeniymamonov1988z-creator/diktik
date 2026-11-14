@@ -227,21 +227,37 @@ def _open_in_browser(url):
         return False
 
 
+def _shift_down():
+    """Клавиша Shift зажата в момент старта программы.
+    Так можно вручную показать страницу запуска демо (для проверки)."""
+    try:
+        if os.name == "nt":
+            import ctypes
+            state = ctypes.windll.user32.GetAsyncKeyState(0x10)
+            return bool(state & 0x8000)
+    except Exception:
+        pass
+    return False
+
+
 def metrika_launch_page(force=False):
     """Открыть служебную страницу «Спасибо, что запустили демо».
     Открываем уже после того, как главное окно на экране (чтобы браузер
     не перекрыл старт программы), один раз на копию."""
     try:
-        if _is_owner():
-            _trace("launch: владелец — пропуск")
+        # Shift зажат при запуске — открываем страницу каждый раз,
+        # даже на компьютере владельца и даже если уже показывали.
+        manual = force or _shift_down()
+        if _is_owner() and not manual:
             return False
         cid = _copy_id()
+
         if not cid:
             _trace("launch: нет номера копии")
             return False
         tok = hashlib.sha1((cid + _LAUNCH_PAGE).encode("utf-8")).hexdigest()[:8]
         mark = os.path.join(_DEMO_DIR, ".mh_" + PRODUCT_CODE + "_" + tok)
-        if not force and os.path.isfile(mark):
+        if not manual and os.path.isfile(mark):
             _trace("launch: уже открывали")
             return False
         try:
