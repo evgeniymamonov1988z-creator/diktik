@@ -268,39 +268,39 @@ jobs:
             dist/Ustanovka*.exe
             dist/Diktik-Full-Setup*.exe
           make_latest: true
-
       - name: Upload installers to site (FTP)
         shell: pwsh
         continue-on-error: true
         env:
-          FTP_HOST: ${{{{ secrets.FTP_HOST }}}}
-          FTP_USER: ${{{{ secrets.FTP_USER }}}}
-          FTP_PASS: ${{{{ secrets.FTP_PASSWORD }}}}
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_USER: ${{ secrets.FTP_USER }}
+          FTP_PASS: ${{ secrets.FTP_PASSWORD }}
         run: |
           $ErrorActionPreference = 'Continue'
-          if (-not $env:FTP_PASS) {{ Write-Host '[!] Нет секрета FTP_PASSWORD'; exit 0 }}
-          $host_ = $env:FTP_HOST; if (-not $host_) {{ $host_ = '141.8.192.25' }}
-          $user_ = $env:FTP_USER; if (-not $user_) {{ $user_ = 'a1306338' }}
+          if (-not $env:FTP_PASS) { Write-Host '[!] Нет секрета FTP_PASSWORD'; exit 0 }
+          $host_ = $env:FTP_HOST; if (-not $host_) { $host_ = '141.8.192.25' }
+          $user_ = $env:FTP_USER; if (-not $user_) { $user_ = 'a1306338' }
           $sess = New-Object System.Net.WebClient
           $sess.Credentials = New-Object System.Net.NetworkCredential($user_, $env:FTP_PASS)
-          function Try-Put($remote, $local) {{
-            if (-not (Test-Path $local)) {{ return $false }}
+          function Try-Put($remote, $local) {
+            if (-not (Test-Path $local)) { return $false }
             $uri = 'ftp://' + $host_ + '/' + $remote
-            try {{
+            try {
               $sess.UploadFile($uri, $local)
               Write-Host ('[OK] залито: ' + $remote + '  ' + [math]::Round((Get-Item $local).Length/1MB,2) + ' MB')
               return $true
-            }} catch {{
+            } catch {
               Write-Host ('[!] не удалось ' + $remote + ': ' + $_.Exception.Message)
               return $false
-            }}
-          }}
-          foreach ($f in @('dist/Ustanovka.Demo.Diktik.exe','dist/Diktik-Full-Setup.exe')) {{
-            if (-not (Test-Path $f)) {{ continue }}
+            }
+          }
+          foreach ($f in @('dist/Ustanovka Diktik VoiceNote.exe','dist/Diktik-Full-Setup.exe','dist/Diktik-VoiceNote-windows.zip')) {
+            if (-not (Test-Path $f)) { continue }
             $name = Split-Path $f -Leaf
             $ok = $false
-            foreach ($dir in @('domains/evgeniymamonov.com/public_html/', 'domains/evgeniymamonov.com/public_html/files/')) {{
-              if ($ok) {{ break }}
+            foreach ($dir in @('domains/evgeniymamonov.com/public_html/', 'domains/evgeniymamonov.com/public_html/files/')) {
+              if ($ok) { break }
               $ok = Try-Put ($dir + $name) $f
-            }}
-          }}
+            }
+          }
+
