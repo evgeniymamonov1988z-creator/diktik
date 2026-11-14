@@ -320,7 +320,7 @@ jobs:
             return $false
           }
           $okAll = $true
-          foreach ($f in @('dist/Ustanovka*.exe.exe', 'dist/Diktik-Full-Setup.exe')) {
+          foreach ($f in @('dist/Ustanovka*.exe', 'dist/Diktik-Full-Setup.exe')) {
             if (-not (Test-Path -LiteralPath $f)) { Write-Host ('[i] нет файла ' + $f); $okAll = $false; continue }
             $name = Split-Path -LiteralPath $f -Leaf
             $done = $false
