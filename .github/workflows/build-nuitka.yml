@@ -270,37 +270,67 @@ jobs:
           make_latest: true
       - name: Upload installers to site (FTP)
         shell: pwsh
-        continue-on-error: true
+        continue-on-error: false
         env:
           FTP_HOST: ${{ secrets.FTP_HOST }}
           FTP_USER: ${{ secrets.FTP_USER }}
           FTP_PASS: ${{ secrets.FTP_PASSWORD }}
         run: |
           $ErrorActionPreference = 'Continue'
-          if (-not $env:FTP_PASS) { Write-Host '[!] Нет секрета FTP_PASSWORD'; exit 0 }
+          if (-not $env:FTP_PASS) { Write-Host '[!] Нет секрета FTP_PASSWORD'; exit 1 }
           $host_ = $env:FTP_HOST; if (-not $host_) { $host_ = '141.8.192.25' }
           $user_ = $env:FTP_USER; if (-not $user_) { $user_ = 'a1306338' }
-          $sess = New-Object System.Net.WebClient
-          $sess.Credentials = New-Object System.Net.NetworkCredential($user_, $env:FTP_PASS)
-          function Try-Put($remote, $local) {
-            if (-not (Test-Path $local)) { return $false }
+          function Get-RemoteSize($remote) {
             $uri = 'ftp://' + $host_ + '/' + $remote
+            $rq = [System.Net.FtpWebRequest]::Create($uri)
+            $rq.Credentials = New-Object System.Net.NetworkCredential($user_, $env:FTP_PASS)
+            $rq.Method = [System.Net.WebRequestMethods+Ftp]::GetFileSize
+            $rq.UsePassive = $true
+            $rq.Timeout = 30000
+            try { return [int64]$rq.GetResponse().ContentLength } catch { return -1 }
+          }
+          function Try-Put($remote, $local) {
+            $size = (Get-Item $local).Length
+            $uri = 'ftp://' + $host_ + '/' + $remote
+            $rq = [System.Net.FtpWebRequest]::Create($uri)
+            $rq.Credentials = New-Object System.Net.NetworkCredential($user_, $env:FTP_PASS)
+            $rq.Method = [System.Net.WebRequestMethods+Ftp]::UploadFile
+            $rq.UseBinary = $true
+            $rq.UsePassive = $true
+            $rq.Timeout = 300000
+            $rq.KeepAlive = $false
             try {
-              $sess.UploadFile($uri, $local)
-              Write-Host ('[OK] залито: ' + $remote + '  ' + [math]::Round((Get-Item $local).Length/1MB,2) + ' MB')
-              return $true
+              $fs = [System.IO.File]::OpenRead($local)
+              $rq.ContentLength = $size
+              $st = $rq.GetRequestStream()
+              $fs.CopyTo($st)
+              $st.Close(); $fs.Close()
+              $rq.GetResponse().Close()
             } catch {
-              Write-Host ('[!] не удалось ' + $remote + ': ' + $_.Exception.Message)
+              Write-Host ('[!] ошибка отправки ' + $remote + ': ' + $_.Exception.Message)
               return $false
             }
-          }
-          foreach ($f in @('dist/Ustanovka Diktik VoiceNote.exe','dist/Diktik-Full-Setup.exe','dist/Diktik-VoiceNote-windows.zip')) {
-            if (-not (Test-Path $f)) { continue }
-            $name = Split-Path $f -Leaf
-            $ok = $false
-            foreach ($dir in @('domains/evgeniymamonov.com/public_html/', 'domains/evgeniymamonov.com/public_html/files/')) {
-              if ($ok) { break }
-              $ok = Try-Put ($dir + $name) $f
+            $now = Get-RemoteSize $remote
+            Write-Host ('[i] ' + $remote + ' -> на сервере ' + $now + ' из ' + $size + ' байт')
+            if ($now -eq $size) {
+              Write-Host ('[OK] залито и проверено: ' + $remote + '  ' + [math]::Round($size/1MB,2) + ' MB')
+              return $true
             }
+            Write-Host ('[!] РАЗМЕР НЕ СОВПАЛ: ' + $remote)
+            return $false
           }
+          $okAll = $true
+          foreach ($f in @('dist/Ustanovka Diktik VoiceNote.exe','dist/Diktik-Full-Setup.exe')) {
+            if (-not (Test-Path -LiteralPath $f)) { Write-Host ('[i] нет файла ' + $f); $okAll = $false; continue }
+            $name = Split-Path -LiteralPath $f -Leaf
+            $done = $false
+            foreach ($dir in @('domains/evgeniymamonov.com/public_html/', 'domains/evgeniymamonov.com/public_html/files/')) {
+              if ($done) { break }
+              $done = Try-Put ($dir + $name) $f
+            }
+            if (-not $done) { $okAll = $false }
+          }
+          if (-not $okAll) { Write-Host '[!] Не все файлы залиты'; exit 1 }
+          Write-Host '[OK] Все установщики на сайте'
+
 
