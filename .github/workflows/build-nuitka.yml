@@ -324,17 +324,19 @@ jobs:
             return $false
           }
           $okAll = $true
-          foreach ($f in @('dist/Ustanovka*.exe', 'dist/Diktik-Full-Setup.exe')) {
-            if (-not (Test-Path -LiteralPath $f)) { Write-Host ('[i] нет файла ' + $f); $okAll = $false; continue }
-            $name = Split-Path -LiteralPath $f -Leaf
-            if (-not (Test-Path -LiteralPath $f)) {
-              $g = Get-ChildItem -Path $f | Select-Object -First 1
-              if ($g) { $f = $g.FullName; $name = $g.Name; Write-Host ('[i] файл: ' + $name) }
-            }
+          $files = @()
+          foreach ($pat in @('dist/Ustanovka*.exe', 'dist/Diktik-Full-Setup.exe')) {
+            $found = @(Get-ChildItem -Path $pat -ErrorAction SilentlyContinue)
+            if ($found.Count -eq 0) { Write-Host ('[i] нет файла ' + $pat); $okAll = $false; continue }
+            $files += $found
+          }
+          foreach ($f in $files) {
+            $lp = $f.FullName; $name = $f.Name
+            Write-Host ('[i] файл: ' + $name)
             $done = $false
             foreach ($dir in @('', 'files/')) {
               if ($done) { break }
-              $done = Try-Put ($dir + $name) $f
+              $done = Try-Put ($dir + $name) $lp
             }
             if (-not $done) { $okAll = $false }
           }
