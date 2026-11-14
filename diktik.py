@@ -168,7 +168,7 @@ TEXTS = {
         "lang": "Language:",
         "trial_left": "Demo: {n} days left",
         "demo_over": "Demo expired",
-        "buy_at": "Full version for $9.9",
+        "buy_at": "Full version for $9.99",
     },
 }
 T = TEXTS[UI]

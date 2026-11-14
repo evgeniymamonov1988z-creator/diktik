@@ -16,11 +16,11 @@
 
 ## Демо-версия / Demo
 
-Это **бесплатная демо-версия**: до 3 минут записи за сеанс работы.
-Полная версия без ограничений — на сайте **evgeniymamonov.com**.
+Это **бесплатная демо-версия**: 3 дня без ограничений по функциям.
+Полная версия (499 ₽, разовая оплата) — на сайте **evgeniymamonov.com**.
 
-This is a **free demo**: up to 3 minutes of recording per session.
-Get the full, unlimited version at **evgeniymamonov.com**.
+This is a **free demo**: 3 days with no feature limits.
+Get the full version ($9.99, one-time payment) at **evgeniymamonov.com**.
 
 ## Запуск из исходников / Run from source
 
