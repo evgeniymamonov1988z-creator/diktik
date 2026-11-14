@@ -1,0 +1,32 @@
+name: Speech accuracy test
+
+# Тест точности распознавания (не сборка, ничего не публикует и не заливает).
+on:
+  push:
+    branches: [ speech-test ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install
+        run: pip install faster-whisper jiwer soundfile numpy
+      - name: Run test
+        env:
+          N_UTT: '40'
+        run: python tools/speech_test.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: speech-test-results
+          path: results.json
+          if-no-files-found: ignore
