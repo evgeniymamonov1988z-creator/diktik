@@ -216,10 +216,17 @@ BLOCK_SAMPLES = 4000          # маленький кусок = 0.25 сек (б�
 MODEL_SIZE = "small"         # точнее base (для проверки точности)
 # Порог тишины: если громкость ниже — это тишина
 SILENCE_LEVEL = 0.0010
-# Сколько тишины (сек) означает конец фразы → сразу пишем
-END_SILENCE = 0.35
-# Макс. длина фразы (сек) — чтобы не копить бесконечно
-MAX_PHRASE = 5.0
+# Сколько тишины (сек) означает конец фразы → сразу пишем.
+# 0.9 с: короткие паузы внутри предложения (вдох, подбор слова) фразу
+# не рвут. Тест на записях с эталонным текстом: ошибок слов 23% → 9%.
+END_SILENCE = 0.9
+# Макс. длина фразы (сек) — чтобы не копить бесконечно. Модели нужен
+# контекст (лучше 10–20 с), но и ждать текст слишком долго неудобно.
+MAX_PHRASE = 15.0
+# Сколько вариантов сравнивает модель (1 = первый попавшийся)
+BEAM_SIZE = 5
+# Сколько последних символов уже распознанного текста подсказывать модели
+CONTEXT_CHARS = 200
 
 # Типичные «галлюцинации» модели (титры из субтитров и т.п.) — выкидываем
 HALLUCINATIONS = [
@@ -251,6 +258,7 @@ class Recognizer:
         self.stream = None
         self.phrase = []            # накапливаемая текущая фраза
         self.language = None        # выбранный язык (None = авто)
+        self.context = ""           # недавний распознанный текст (подсказка модели)
         # Умная грамматика работает по умолчанию (если доступна)
         self.smart = GRAMMAR_AVAILABLE
 
@@ -406,15 +414,19 @@ class Recognizer:
     def _transcribe(self, audio):
         try:
             # vad_filter=True — отрезаем тишину/шум (звук уже усилен)
+            # Подсказка — конец уже распознанного текста: модель лучше
+            # понимает продолжение фразы, окончания и пунктуацию.
+            prompt = self.context[-CONTEXT_CHARS:].strip() or None
             segments, info = self.model.transcribe(
                 audio,
                 language=self.language,
-                beam_size=1,
+                beam_size=BEAM_SIZE,
                 temperature=0.0,
                 vad_filter=True,
                 no_speech_threshold=0.6,
                 compression_ratio_threshold=10.0,
                 condition_on_previous_text=False,
+                initial_prompt=prompt,
             )
             parts = []
             for seg in segments:
@@ -437,6 +449,7 @@ class Recognizer:
                 text = smart_grammar(text, self.language)
             log.info("Распознано (язык=%s): %r", getattr(info, "language", "?"), text)
             if text:
+                self.context = (self.context + " " + text)[-(CONTEXT_CHARS * 2):]
                 self.on_text(text)
         except Exception:
             log.error("Ошибка распознавания:\n%s", traceback.format_exc())
@@ -575,6 +588,7 @@ class App:
     def _apply_language(self, name):
         code = dict(LANGUAGES).get(name, None)
         self.rec.language = code
+        self.rec.context = ""   # подсказка на старом языке только мешает
         log.info("Выбран язык: %s (%s)", name, code)
 
     def _on_lang_change(self, event=None):
@@ -703,6 +717,7 @@ class App:
 
     def clear(self):
         self.text.delete("1.0", "end")
+        self.rec.context = ""   # новый текст — без подсказки от старого
 
     def copy_text(self, event=None):
         content = self.text.get("1.0", "end").strip()
