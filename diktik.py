@@ -773,12 +773,17 @@ def main():
         return
     try:
         if HAS_LIC:
+            lic.demo_ping("demo", 0)
             lic.metrika_launch_page()
     except Exception:
         pass
     try:
         root = tk.Tk()
         App(root)
+        try:
+            root.after(1200, root.lift)
+        except Exception:
+            pass
         root.mainloop()
     except Exception:
         log.error("Критическая ошибка:\n%s", traceback.format_exc())

@@ -144,6 +144,18 @@ def _first_run_ts():
 # Тихо: при любой ошибке ничего не происходит.
 # ---------------------------------------------------------------
 _LAUNCH_PAGE = "https://evgeniymamonov.com/zapusk-ag.html"
+_PING_URL = "https://evgeniymamonov.com/api/ping.php"
+
+
+def _trace(msg):
+    """Тихий файл-журнал на компьютере (диагностика, без личных данных)."""
+    try:
+        os.makedirs(_DEMO_DIR, exist_ok=True)
+        with open(os.path.join(_DEMO_DIR, "launch_" + PRODUCT_CODE + ".log"),
+                  "a", encoding="utf-8") as fh:
+            fh.write(time.strftime("%Y-%m-%d %H:%M:%S ") + str(msg) + "\n")
+    except Exception:
+        pass
 
 
 def _copy_id():
@@ -181,9 +193,20 @@ def _is_owner():
     return False
 
 
+def _urlopen(url, timeout=3):
+    """Проверка, что адрес реально существует (иначе не открываем)."""
+    try:
+        import urllib.request
+        req = urllib.request.Request(url, method="HEAD",
+                                     headers={"User-Agent": "MAMONOV-Launch/1.0"})
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return 200 <= getattr(r, "status", 200) < 400
+    except Exception:
+        return False
+
+
 def _open_in_browser(url):
-    """Открывает ссылку в обычном браузере Windows максимально надёжно.
-    Пробуем несколько способов: os.startfile -> rundll32 -> webbrowser."""
+    """Открывает ссылку в обычном браузере Windows максимально надёжно."""
     if os.name == "nt":
         try:
             os.startfile(url)  # noqa: S606 — штатный запуск браузера Windows
@@ -206,24 +229,39 @@ def _open_in_browser(url):
 
 def metrika_launch_page(force=False):
     """Открыть служебную страницу «Спасибо, что запустили демо».
-    force=True — открыть даже если отметка уже была (ручная проверка)."""
+    Открываем уже после того, как главное окно на экране (чтобы браузер
+    не перекрыл старт программы), один раз на копию."""
     try:
-        if not _is_demo_edition() or _is_owner():
+        if _is_owner():
+            _trace("launch: владелец — пропуск")
             return False
         cid = _copy_id()
         if not cid:
+            _trace("launch: нет номера копии")
             return False
         tok = hashlib.sha1((cid + _LAUNCH_PAGE).encode("utf-8")).hexdigest()[:8]
         mark = os.path.join(_DEMO_DIR, ".mh_" + PRODUCT_CODE + "_" + tok)
         if not force and os.path.isfile(mark):
+            _trace("launch: уже открывали")
             return False
         try:
             with open(mark, "w", encoding="utf-8") as fh:
                 fh.write(cid)
         except Exception:
             pass
+
+        def _run():
+            try:
+                ok_page = _urlopen(_LAUNCH_PAGE)
+                _trace("launch: страница доступна=%s" % ok_page)
+                opened = _open_in_browser(_LAUNCH_PAGE)
+                _trace("launch: браузер открыт=%s" % opened)
+            except Exception as e:
+                _trace("launch: ошибка %r" % (e,))
+
         import threading
-        threading.Timer(1.5, lambda: _open_in_browser(_LAUNCH_PAGE)).start()
+        threading.Timer(4.0, _run).start()
+        _trace("launch: поставлен таймер 4с")
         return True
     except Exception:
         return False
@@ -309,9 +347,11 @@ def demo_ping(status="demo", days=0):
     Компьютер владельца (owner.flag) не считается."""
     try:
         if _is_owner():
+            _trace("ping: владелец — пропуск")
             return
         cid = _copy_id()
         if not cid:
+            _trace("ping: нет номера копии")
             return
 
         def _send():
@@ -324,9 +364,11 @@ def demo_ping(status="demo", days=0):
                 req = urllib.request.Request(
                     _PING_URL + "?" + q,
                     headers={"User-Agent": "MAMONOV-DemoPing/1.0"})
-                urllib.request.urlopen(req, timeout=3).read()
-            except Exception:
-                pass
+                r = urllib.request.urlopen(req, timeout=3)
+                _trace("ping: ответ %s" % getattr(r, "status", "?"))
+                r.read()
+            except Exception as e:
+                _trace("ping: ошибка %r" % (e,))
 
         import threading
         threading.Thread(target=_send, daemon=True).start()
