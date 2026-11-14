@@ -277,7 +277,15 @@ jobs:
           FTP_PASS: ${{ secrets.FTP_PASSWORD }}
         run: |
           $ErrorActionPreference = 'Continue'
+          Write-Host ('[dbg] PASS_len=' + ($env:FTP_PASS | Measure-Object -Character).Characters + ' USER=[' + $env:FTP_USER + '] HOST=[' + $env:FTP_HOST + ']')
+          if ($env:FTP_PASS) { Write-Host ('[dbg] PASS_md5=' + ([System.BitConverter]::ToString([System.Security.Cryptography.MD5]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes($env:FTP_PASS))).Replace('-','').ToLower()) + ' PASS_tail=' + $env:FTP_PASS.Substring([Math]::Max(0,$env:FTP_PASS.Length-2))) }
           if (-not $env:FTP_PASS) { Write-Host '[!] Нет секрета FTP_PASSWORD'; exit 1 }
+          try {
+            $c = New-Object System.Net.Sockets.TcpClient
+            $ar = $c.BeginConnect($host_, 21, $null, $null)
+            if (-not $ar.AsyncWaitHandle.WaitOne(15000)) { Write-Host '[dbg] TCP 21: TIMEOUT' } else { $c.EndConnect($ar); Write-Host '[dbg] TCP 21: OK' }
+            $c.Close()
+          } catch { Write-Host ('[dbg] TCP 21: FAIL ' + $_.Exception.Message) }
           $host_ = $env:FTP_HOST; if (-not $host_) { $host_ = '141.8.192.25' }
           $user_ = $env:FTP_USER; if (-not $user_) { $user_ = 'a1306338' }
           function Get-RemoteSize($remote) {
