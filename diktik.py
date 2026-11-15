@@ -264,10 +264,15 @@ class Recognizer:
 
     def load_model(self):
         if self.model is None:
-            log.info("Загрузка модели '%s'…", MODEL_SIZE)
+            # Модель встроена в папку программы (models/small) — работает сразу
+            # и без интернета. Если её нет (запуск из исходников) — скачиваем.
+            local = os.path.join(BASE_DIR, "models", MODEL_SIZE)
+            source = local if os.path.isfile(os.path.join(local, "model.bin")) else MODEL_SIZE
+            log.info("Загрузка модели '%s' (%s)…", MODEL_SIZE,
+                     "встроенная" if source == local else "из интернета")
             self.on_status(T["loading"])
             self.model = WhisperModel(
-                MODEL_SIZE,
+                source,
                 device="cpu",
                 compute_type="int8",
                 cpu_threads=os.cpu_count() or 4,

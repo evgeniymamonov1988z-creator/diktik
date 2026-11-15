@@ -34,6 +34,32 @@ jobs:
           pip install -r requirements.txt
           pip install nuitka
 
+      - name: Prepare built-in speech model (small, int8)
+        shell: pwsh
+        run: |
+          # Модель распознавания встраивается в программу: первый запуск без
+          # скачивания и без интернета. Храним сразу в int8 — вдвое меньше,
+          # качество то же (программа и так работает в int8).
+          # Конвертер ставим в отдельное окружение, чтобы не трогать библиотеки программы.
+          $out = 'models\small'
+          New-Item -ItemType Directory -Force 'models' | Out-Null
+          $ok = $false
+          try {
+            python -m venv conv
+            & conv\Scripts\python.exe -m pip install --quiet --upgrade pip
+            & conv\Scripts\python.exe -m pip install --quiet ctranslate2 "transformers[torch]"
+            & conv\Scripts\ct2-transformers-converter.exe --model openai/whisper-small --output_dir $out --quantization int8 --copy_files tokenizer.json preprocessor_config.json --force
+            if ($LASTEXITCODE -eq 0 -and (Test-Path "$out\model.bin")) { $ok = $true }
+          } catch { Write-Host "[!] конвертация в int8 не удалась: $_" }
+          if (-not $ok) {
+            Write-Host '[i] беру готовую модель Systran/faster-whisper-small (float16)'
+            python -c "from huggingface_hub import snapshot_download; snapshot_download('Systran/faster-whisper-small', local_dir=r'models\small')"
+          }
+          if (-not (Test-Path "$out\model.bin")) { Write-Host '[!] модель не подготовлена'; exit 1 }
+          $mb = [math]::Round((Get-ChildItem $out -Recurse -File | Measure-Object Length -Sum).Sum/1MB,1)
+          Write-Host "[OK] встроенная модель small: $mb MB"
+          Get-ChildItem $out -File | ForEach-Object { Write-Host ('   ' + $_.Name + '  ' + [math]::Round($_.Length/1MB,1) + ' MB') }
+
       - name: Build compact Java runtime (jlink)
         shell: pwsh
         run: |
@@ -77,6 +103,9 @@ jobs:
           Rename-Item -LiteralPath $dist -NewName 'Diktik' -Force
           # кладём встроенную Java рядом с программой
           Copy-Item -Path 'jre' -Destination 'dist\Diktik\jre' -Recurse -Force
+          # кладём встроенную модель распознавания рядом с программой
+          Copy-Item -Path 'models' -Destination 'dist\Diktik\models' -Recurse -Force
+          Write-Host '[OK] модель распознавания упакована в папку программы'
           Write-Host '[OK] Java упакована в папку программы'
 
       - name: Sign main EXE (own certificate)
@@ -181,6 +210,7 @@ jobs:
           if-no-files-found: error
 
       - name: Publish to rolling release
+        if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: auto-build
@@ -191,6 +221,7 @@ jobs:
             dist/Ustanovka*.exe
           make_latest: true
       - name: Upload installers to site (FTP)
+        if: github.ref == 'refs/heads/main'
         shell: pwsh
         continue-on-error: false
         env:
