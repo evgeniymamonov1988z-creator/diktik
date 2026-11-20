@@ -62,10 +62,32 @@ def _app_dir():
         return "."
 
 
+_LICENSE_MARK = "2ebf8a0cc42dc24243a267e544e4b095"
+
+
+def _has_license_file():
+    """Файл лицензии license_<код>.dat рядом с программой, его ставит
+    ключ активации. Если он есть и содержит метку — полная версия,
+    даже если demo.flag снова появился (например, после демо-установки)."""
+    for d in _app_dirs():
+        try:
+            p = os.path.join(d, "license_" + PRODUCT_CODE + ".dat")
+            if os.path.isfile(p):
+                with open(p, "r", encoding="utf-8", errors="ignore") as f:
+                    if _LICENSE_MARK in f.read():
+                        return True
+        except Exception:
+            pass
+    return False
+
+
 def _is_demo_edition():
     """Демо-сборка? Признак — рядом с программой файл demo.flag.
     Проверяем все возможные папки (.exe / argv[0] / модуль).
-    Нет файла → полная версия без ограничений."""
+    Нет файла → полная версия без ограничений.
+    Файл лицензии (см. _has_license_file) всегда отменяет демо."""
+    if _has_license_file():
+        return False
     for d in _app_dirs():
         try:
             if os.path.isfile(os.path.join(d, "demo.flag")):
