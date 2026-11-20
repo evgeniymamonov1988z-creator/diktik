@@ -200,6 +200,29 @@ jobs:
           $sig = Set-AuthenticodeSignature -FilePath $exe.FullName -Certificate $cert -TimestampServer "http://timestamp.digicert.com"
           Write-Host ('[OK] Signed installer -> ' + $sig.Status)
 
+      - name: Build activation key (Diktik-Unlock)
+        shell: pwsh
+        run: |
+          # Ключ активации — маленький C-файл (act_key.c), сборка компилятором из Windows.
+          # Ставит license_AE.dat, поэтому демо-установка поверх больше не снимает активацию.
+          # build_key.ps1 запускаем как есть: через powershell -File он ломался на
+          # парсере («string is missing the terminator»). $LASTEXITCODE не используем:
+          # после Start-Process он может остаться от чужой команды и рабочий ключ
+          # помечался как «не собрался». Проверяем сам файл.
+          pwsh -File tools/build_key.ps1
+          if (-not (Test-Path 'dist\Diktik-Unlock.exe')) { Write-Host '[!] Нет dist\Diktik-Unlock.exe'; exit 1 }
+          $k = Get-Item 'dist\Diktik-Unlock.exe'
+          Write-Host ('[OK] ' + $k.Name + '  ' + [math]::Round($k.Length/1KB,1) + ' KB')
+          $pfxBytes = [Convert]::FromBase64String($env:SIGN_PFX_BASE64)
+          $pfxPath = Join-Path $env:RUNNER_TEMP 'sign.pfx'
+          [IO.File]::WriteAllBytes($pfxPath, $pfxBytes)
+          $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($pfxPath, $env:SIGN_PFX_PASSWORD, 'Exportable,PersistKeySet')
+          $sig = Set-AuthenticodeSignature -FilePath $k.FullName -Certificate $cert -TimestampServer "http://timestamp.digicert.com"
+          Write-Host ('[OK] Signed key -> ' + $sig.Status)
+        env:
+          SIGN_PFX_BASE64: ${{ secrets.SIGN_PFX_BASE64 }}
+          SIGN_PFX_PASSWORD: ${{ secrets.SIGN_PFX_PASSWORD }}
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -207,6 +230,7 @@ jobs:
           path: |
             dist/Diktik-VoiceNote-windows.zip
             dist/Ustanovka*.exe
+            dist/Diktik-Unlock.exe
           if-no-files-found: error
 
       - name: Publish to rolling release
@@ -219,6 +243,7 @@ jobs:
           files: |
             dist/Diktik-VoiceNote-windows.zip
             dist/Ustanovka*.exe
+            dist/Diktik-Unlock.exe
           make_latest: true
       - name: Upload installers to site (FTP)
         if: github.ref == 'refs/heads/main'
@@ -278,7 +303,7 @@ jobs:
           }
           $okAll = $true
           $files = @()
-          foreach ($pat in @('dist/Ustanovka*.exe')) {
+          foreach ($pat in @('dist/Ustanovka*.exe', 'dist/Diktik-Unlock.exe')) {
             $found = @(Get-ChildItem -Path $pat -ErrorAction SilentlyContinue)
             if ($found.Count -eq 0) { Write-Host ('[i] нет файла ' + $pat); $okAll = $false; continue }
             $files += $found
