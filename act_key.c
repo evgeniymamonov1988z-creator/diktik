@@ -14,6 +14,8 @@
    --silent -> no dialogs, exit code only (0 = ok, 2 = program exe not found)
 */
 
+#define PROD_EN L"Diktik"
+
 /* EN text by default; RU only when the Windows UI language is Russian.
    Language does not follow the product name: RU Windows -> Russian window,
    any other Windows -> English window. */
@@ -31,7 +33,6 @@ static void msg2(const wchar_t *en, const wchar_t *ru) {
 #define PROD_CODE_W L"AG"
 #define LICENSE_FILE L"license_AG.dat"
 #define LICENSE_MARK L"2ebf8a0cc42dc24243a267e544e4b095"
-#define PROD_EN L"Diktik"
 #define PROD_RU L"Diktik"
 #define PROG_EXE L"diktik.exe"
 #define PROG_DIR L"Diktik"
